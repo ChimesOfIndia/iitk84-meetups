@@ -29,6 +29,7 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
     notes: existing.notes || '',
   } : emptyForm)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -44,12 +45,18 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
   }
 
   const save = async () => {
-    if (!form.city_cluster) return alert('Please select a city')
-    if (!form.date_time) return alert('Please set a date and time')
+    setError(null)
+    if (!form.city_cluster) { setError('Please select a city'); return }
+    if (!form.date_time) { setError('Please set a date and time'); return }
     setSaving(true)
-    const rawDate = form.date_time
-    const parsedDate = rawDate ? new Date(rawDate).toISOString() : null
-    const payload = {
+    try {
+      const rawDate = form.date_time
+      let parsedDate = null
+      if (rawDate) {
+        const d = new Date(rawDate)
+        parsedDate = isNaN(d.getTime()) ? rawDate : d.toISOString()
+      }
+      const payload = {
         ...form,
         date_time: parsedDate,
         title: getTitle(),
@@ -58,13 +65,23 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
         status: 'upcoming',
         visitor_names: form.meetup_type === 'visit' ? form.visitor_names : null,
       }
-    if (existing) {
-      await supabase.from('meetups').update(payload).eq('id', existing.id)
-    } else {
-      await supabase.from('meetups').insert(payload)
+      let result
+      if (existing) {
+        result = await supabase.from('meetups').update(payload).eq('id', existing.id)
+      } else {
+        result = await supabase.from('meetups').insert(payload)
+      }
+      if (result.error) {
+        setError('Error: ' + result.error.message)
+        setSaving(false)
+        return
+      }
+      setSaving(false)
+      onSaved()
+    } catch(e) {
+      setError('Unexpected error: ' + e.message)
+      setSaving(false)
     }
-    setSaving(false)
-    onSaved()
   }
 
   return (
@@ -145,6 +162,11 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
           <textarea className="form-textarea" placeholder="Parking, dress code, special occasion..." value={form.notes} onChange={e => set('notes', e.target.value)} />
         </div>
 
+        {error && (
+          <div style={{ background: 'rgba(224,92,92,0.15)', border: '1px solid rgba(224,92,92,0.4)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: 'var(--red)' }}>
+            ⚠️ {error}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary btn-full" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary btn-full" onClick={save} disabled={saving}>
