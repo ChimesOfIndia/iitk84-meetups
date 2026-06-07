@@ -47,14 +47,17 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
     if (!form.city_cluster) return alert('Please select a city')
     if (!form.date_time) return alert('Please set a date and time')
     setSaving(true)
+    const rawDate = form.date_time
+    const parsedDate = rawDate ? new Date(rawDate).toISOString() : null
     const payload = {
-      ...form,
-      title: getTitle(),
-      anchor_id: identity?.id || null,
-      anchor_name: identity?.name || 'Unknown',
-      status: 'upcoming',
-      visitor_names: form.meetup_type === 'visit' ? form.visitor_names : null,
-    }
+        ...form,
+        date_time: parsedDate,
+        title: getTitle(),
+        anchor_id: identity?.id || null,
+        anchor_name: identity?.name || 'Unknown',
+        status: 'upcoming',
+        visitor_names: form.meetup_type === 'visit' ? form.visitor_names : null,
+      }
     if (existing) {
       await supabase.from('meetups').update(payload).eq('id', existing.id)
     } else {
