@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { CITY_CLUSTERS } from '../lib/constants'
+import { CITY_CLUSTERS, MEAL_TYPES } from '../lib/constants'
 import { useIdentity } from '../lib/IdentityContext'
 
 const emptyForm = {
+  label: '',
+  meal_type: '',
   city_cluster: '',
   custom_city: '',
   meetup_type: 'local',
@@ -18,6 +20,8 @@ const emptyForm = {
 export default function MeetupForm({ onClose, onSaved, existing }) {
   const { identity } = useIdentity()
   const [form, setForm] = useState(existing ? {
+    label: existing.label || '',
+    meal_type: existing.meal_type || '',
     city_cluster: existing.city_cluster || '',
     custom_city: existing.custom_city || '',
     meetup_type: existing.meetup_type || 'local',
@@ -35,15 +39,6 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
 
   const needsCustomCity = ['other_india', 'other_usa', 'rest_of_world'].includes(form.city_cluster)
 
-  const getTitle = () => {
-    if (form.meetup_type === 'visit' && form.visitor_names) {
-      return `${form.visitor_names} visiting`
-    }
-    const cluster = CITY_CLUSTERS.find(c => c.value === form.city_cluster)
-    const cityName = needsCustomCity && form.custom_city ? form.custom_city : cluster?.label || ''
-    return `${cityName} Meetup`
-  }
-
   const save = async () => {
     setError(null)
     if (!form.city_cluster) { setError('Please select a city'); return }
@@ -59,7 +54,6 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
       const payload = {
         ...form,
         date_time: parsedDate,
-        title: getTitle(),
         anchor_id: identity?.id || null,
         anchor_name: identity?.name || 'Unknown',
         status: 'upcoming',
@@ -71,11 +65,7 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
       } else {
         result = await supabase.from('meetups').insert(payload)
       }
-      if (result.error) {
-        setError('Error: ' + result.error.message)
-        setSaving(false)
-        return
-      }
+      if (result.error) { setError('Error: ' + result.error.message); setSaving(false); return }
       setSaving(false)
       onSaved()
     } catch(e) {
@@ -109,20 +99,18 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
           <label className="form-label">City</label>
           <select className="form-select" value={form.city_cluster} onChange={e => set('city_cluster', e.target.value)}>
             <option value="">Select city...</option>
-            <optgroup label="India">
-              {CITY_CLUSTERS.filter(c => ['delhi','gurgaon','noida','bangalore','mumbai','other_india'].includes(c.value)).map(c => (
+            <optgroup label="— India —">
+              {CITY_CLUSTERS.filter(c => c.group === 'India').map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </optgroup>
-            <optgroup label="USA">
-              {CITY_CLUSTERS.filter(c => ['bay_area','chicago','new_york','other_usa'].includes(c.value)).map(c => (
+            <optgroup label="— USA —">
+              {CITY_CLUSTERS.filter(c => c.group === 'USA').map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </optgroup>
-            <optgroup label="Rest of World">
-              {CITY_CLUSTERS.filter(c => c.value === 'rest_of_world').map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
+            <optgroup label="— Rest of World —">
+              <option value="rest_of_world">Rest of World</option>
             </optgroup>
           </select>
         </div>
@@ -133,6 +121,20 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
             <input className="form-input" placeholder="e.g. Kolkata" value={form.custom_city} onChange={e => set('custom_city', e.target.value)} />
           </div>
         )}
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Label (optional)</label>
+            <input className="form-input" placeholder="e.g. Batch Reunion" value={form.label} onChange={e => set('label', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Meal Type</label>
+            <select className="form-select" value={form.meal_type} onChange={e => set('meal_type', e.target.value)}>
+              <option value="">Select...</option>
+              {MEAL_TYPES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
 
         <div className="form-group">
           <label className="form-label">Date & Time</label>
