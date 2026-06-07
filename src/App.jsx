@@ -6,6 +6,7 @@ import MeetupsPage from './pages/MeetupsPage'
 import VisitsPage from './pages/VisitsPage'
 import MembersPage from './pages/MembersPage'
 import PastPage from './pages/PastPage'
+import { APP_VERSION, FEEDBACK_EMAIL, APP_AUTHOR } from './lib/constants'
 
 function IdentityBar() {
   const { identity, setShowPicker, clearIdentity } = useIdentity()
@@ -65,6 +66,13 @@ function AppInner() {
         ))}
       </nav>
       {showPicker && <IdentityPicker onClose={() => setShowPicker(false)} />}
+      <footer className="app-footer">
+        <div className="footer-version">{APP_VERSION}</div>
+        <div className="footer-text">
+          Designed & vibe coded by {APP_AUTHOR}<br/>
+          Feedback / bugs: {FEEDBACK_EMAIL}
+        </div>
+      </footer>
     </div>
   )
 }

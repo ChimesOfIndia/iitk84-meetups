@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useIdentity } from '../lib/IdentityContext'
-import { CITY_CLUSTERS } from '../lib/constants'
+import { CITY_CLUSTERS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
 import { format } from 'date-fns'
 
 export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
@@ -10,12 +10,18 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const [myRsvp, setMyRsvp] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [extraGuests, setExtraGuests] = useState(0)
 
   const loadRsvps = async () => {
-    const { data } = await supabase.from('rsvps').select('*').eq('meetup_id', meetup.id)
+    const { data } = await supabase
+      .from('rsvps')
+      .select('*, members(name, spouse_name)')
+      .eq('meetup_id', meetup.id)
     setRsvps(data || [])
     if (identity) {
-      setMyRsvp((data || []).find(r => r.member_id === identity.id) || null)
+      const mine = (data || []).find(r => r.member_id === identity.id)
+      setMyRsvp(mine || null)
+      setExtraGuests(mine?.extra_guests || 0)
     }
     setLoading(false)
   }
@@ -26,7 +32,6 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     if (!identity) { setShowPicker(true); return }
     setSaving(true)
     if (myRsvp && myRsvp.status === status) {
-      // Toggle off
       await supabase.from('rsvps').delete().eq('id', myRsvp.id)
       setMyRsvp(null)
     } else {
@@ -36,6 +41,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
         member_name: identity.name,
         status,
         with_spouse: myRsvp?.with_spouse || false,
+        extra_guests: extraGuests,
       }
       if (myRsvp) {
         await supabase.from('rsvps').update(payload).eq('id', myRsvp.id)
@@ -53,6 +59,15 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     await loadRsvps()
   }
 
+  const updateExtraGuests = async (val) => {
+    const n = Math.max(0, val)
+    setExtraGuests(n)
+    if (myRsvp) {
+      await supabase.from('rsvps').update({ extra_guests: n }).eq('id', myRsvp.id)
+      await loadRsvps()
+    }
+  }
+
   const handleDelete = async () => {
     if (!confirm('Delete this meetup?')) return
     await supabase.from('meetups').delete().eq('id', meetup.id)
@@ -61,23 +76,54 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
 
   const coming = rsvps.filter(r => r.status === 'coming')
   const maybe = rsvps.filter(r => r.status === 'maybe')
+  const regrets = rsvps.filter(r => r.status === 'regrets')
   const spouseCount = coming.filter(r => r.with_spouse).length
+  const extraGuestsTotal = coming.reduce((sum, r) => sum + (r.extra_guests || 0), 0)
 
   const cityLabel = () => {
     if (meetup.custom_city) return meetup.custom_city
+    if (NCR_VALUES.includes(meetup.city_cluster)) return 'Delhi-NCR'
     return CITY_CLUSTERS.find(c => c.value === meetup.city_cluster)?.label || meetup.city_cluster
+  }
+
+  const mealLabel = () => {
+    if (!meetup.meal_type) return ''
+    return MEAL_TYPES.find(m => m.value === meetup.meal_type)?.label || ''
+  }
+
+  const cardTitle = () => {
+    const parts = []
+    if (meetup.label) parts.push(meetup.label)
+    if (meetup.meal_type) parts.push(mealLabel())
+    if (parts.length === 0) return meetup.meetup_type === 'visit' ? `${meetup.visitor_names} visiting` : `${cityLabel()} Meetup`
+    return parts.join(' — ')
+  }
+
+  const formatDate = (dt) => {
+    if (!dt) return ''
+    return format(new Date(dt), 'EEE, d MMM yyyy • h:mm a')
+  }
+
+  const attendeeName = (r) => {
+    const spouseName = r.members?.spouse_name
+    if (r.with_spouse && spouseName) return `${r.member_name} + ${spouseName}`
+    if (r.with_spouse) return `${r.member_name} + spouse`
+    return r.member_name
   }
 
   const shareText = () => {
     const lines = [
       `🎉 IITK84 MeetUp — ${cityLabel()}`,
+      meetup.meal_type ? `🍽️ ${mealLabel()}` : '',
+      meetup.label ? `📌 ${meetup.label}` : '',
       meetup.meetup_type === 'visit' ? `✈️ Occasion: ${meetup.visitor_names} visiting` : '',
-      `📅 ${meetup.date_time ? format(new Date(meetup.date_time), 'EEE, d MMM yyyy • h:mm a') : 'TBD'}`,
+      `📅 ${formatDate(meetup.date_time)}`,
       meetup.venue_name ? `📍 ${meetup.venue_name}` : '',
       meetup.with_spouses ? '👫 With spouses' : '👤 Batchmates only',
       `⚓ Anchor: ${meetup.anchor_name}`,
-      coming.length > 0 ? `\n✅ Coming (${coming.length}): ${coming.map(r => r.member_name + (r.with_spouse ? ' +spouse' : '')).join(', ')}` : '',
-      maybe.length > 0 ? `🤔 Maybe (${maybe.length}): ${maybe.map(r => r.member_name).join(', ')}` : '',
+      coming.length > 0 ? `\n✅ Coming (${coming.length} batchmates${spouseCount > 0 ? ` + ${spouseCount} spouses` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}):\n${coming.map(r => '  ' + attendeeName(r) + (r.extra_guests > 0 ? ` +${r.extra_guests} guest(s)` : '')).join('\n')}` : '',
+      maybe.length > 0 ? `\n🤔 Maybe (${maybe.length}):\n${maybe.map(r => '  ' + r.member_name).join('\n')}` : '',
+      regrets.length > 0 ? `\n❌ Regrets (${regrets.length}):\n${regrets.map(r => '  ' + r.member_name).join('\n')}` : '',
       meetup.notes ? `\n📝 ${meetup.notes}` : '',
     ].filter(Boolean).join('\n')
     return lines
@@ -98,8 +144,11 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
         <div className="sheet-handle" />
 
         <div style={{ marginBottom: 16 }}>
-          <div className="card-city">{cityLabel()}</div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, marginBottom: 8 }}>{meetup.title}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div className="card-city">{cityLabel()}</div>
+            {meetup.meal_type && <span className="badge badge-visit">{mealLabel()}</span>}
+          </div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, marginBottom: 8 }}>{cardTitle()}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span className={`badge ${meetup.meetup_type === 'visit' ? 'badge-visit' : 'badge-local'}`}>
               {meetup.meetup_type === 'visit' ? '✈️ Visit' : '🏠 Local'}
@@ -109,9 +158,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
         </div>
 
         <div className="card-meta">
-          {meetup.date_time && (
-            <div className="meta-item">📅 {format(new Date(meetup.date_time), 'EEE, d MMM yyyy • h:mm a')}</div>
-          )}
+          {meetup.date_time && <div className="meta-item">📅 {formatDate(meetup.date_time)}</div>}
           {meetup.venue_name && (
             <div className="meta-item">
               📍 {meetup.venue_maps_url
@@ -131,32 +178,39 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
           <>
             <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>Your RSVP</div>
             <div className="rsvp-actions">
-              <button
-                className={`rsvp-btn coming ${myRsvp?.status === 'coming' ? 'active' : ''}`}
-                onClick={() => handleRsvp('coming')} disabled={saving}>
-                ✅ Coming
-              </button>
-              <button
-                className={`rsvp-btn maybe ${myRsvp?.status === 'maybe' ? 'active' : ''}`}
-                onClick={() => handleRsvp('maybe')} disabled={saving}>
-                🤔 Maybe
-              </button>
+              <button className={`rsvp-btn coming ${myRsvp?.status === 'coming' ? 'active' : ''}`} onClick={() => handleRsvp('coming')} disabled={saving}>✅ Coming</button>
+              <button className={`rsvp-btn maybe ${myRsvp?.status === 'maybe' ? 'active' : ''}`} onClick={() => handleRsvp('maybe')} disabled={saving}>🤔 Maybe</button>
+              <button className={`rsvp-btn regrets ${myRsvp?.status === 'regrets' ? 'active' : ''}`} onClick={() => handleRsvp('regrets')} disabled={saving}>❌ Regrets</button>
             </div>
-            {myRsvp?.status === 'coming' && meetup.with_spouses && (
-              <button className={`toggle-btn ${myRsvp.with_spouse ? 'active' : ''}`} style={{ marginTop: 8, width: '100%' }} onClick={toggleSpouse}>
-                {myRsvp.with_spouse ? '👫 Bringing spouse' : '👤 Not bringing spouse'}
-              </button>
+
+            {myRsvp?.status === 'coming' && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {meetup.with_spouses && (
+                  <button className={`toggle-btn ${myRsvp.with_spouse ? 'active' : ''}`} onClick={toggleSpouse}>
+                    {myRsvp.with_spouse ? '👫 Spouse will join' : '👤 Spouse not joining'}
+                  </button>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Additional guests</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => updateExtraGuests(extraGuests - 1)}>−</button>
+                    <span style={{ fontSize: 14, fontWeight: 600, minWidth: 20, textAlign: 'center' }}>{extraGuests}</span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => updateExtraGuests(extraGuests + 1)}>+</button>
+                  </div>
+                </div>
+              </div>
             )}
             <div className="divider" />
           </>
         )}
 
-        {/* Attendee counts */}
+        {/* Counts */}
         {loading ? <div className="spinner">Loading...</div> : (
           <>
             <div className="rsvp-bar">
-              <div className="rsvp-count"><span className="num">✅ {coming.length}</span><span className="lbl">coming{spouseCount > 0 ? ` +${spouseCount} spouses` : ''}</span></div>
+              <div className="rsvp-count"><span className="num">✅ {coming.length}</span><span className="lbl">batchmates{spouseCount > 0 ? ` +${spouseCount} spouses` : ''}{extraGuestsTotal > 0 ? ` +${extraGuestsTotal} guests` : ''}</span></div>
               <div className="rsvp-count"><span className="num">🤔 {maybe.length}</span><span className="lbl">maybe</span></div>
+              {regrets.length > 0 && <div className="rsvp-count"><span className="num">❌ {regrets.length}</span><span className="lbl">regrets</span></div>}
             </div>
 
             {coming.length > 0 && (
@@ -165,7 +219,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
                 <div className="attendee-list">
                   {coming.map(r => (
                     <div key={r.id} className="attendee-chip">
-                      {r.member_name}{r.with_spouse && <span className="spouse-tag">+spouse</span>}
+                      {attendeeName(r)}{r.extra_guests > 0 && <span className="spouse-tag">+{r.extra_guests}</span>}
                     </div>
                   ))}
                 </div>
@@ -176,9 +230,16 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
               <>
                 <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 12, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Maybe</div>
                 <div className="attendee-list">
-                  {maybe.map(r => (
-                    <div key={r.id} className="attendee-chip maybe">{r.member_name}</div>
-                  ))}
+                  {maybe.map(r => <div key={r.id} className="attendee-chip maybe">{r.member_name}</div>)}
+                </div>
+              </>
+            )}
+
+            {regrets.length > 0 && (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 12, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Regrets</div>
+                <div className="attendee-list">
+                  {regrets.map(r => <div key={r.id} className="attendee-chip" style={{ opacity: 0.5 }}>{r.member_name}</div>)}
                 </div>
               </>
             )}
@@ -186,7 +247,6 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
         )}
 
         <div className="divider" />
-
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="wa-btn" onClick={handleShare}>📱 Share on WhatsApp</button>
           <button className="btn btn-secondary btn-sm" onClick={onEdit}>✏️ Edit</button>
