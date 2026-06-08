@@ -261,7 +261,7 @@ body { overflow-x: hidden; }
 .rsvp-btn.regrets.active { border-color: var(--red); background: rgba(224,92,92,0.15); color: var(--red); }
 
 /* Footer */
-.app-footer { padding: 20px 16px 8px; text-align: center; border-top: 1px solid var(--border); margin-top: 8px; }
+.app-footer { padding: 20px 16px calc(var(--nav-height) + 16px); text-align: center; border-top: 1px solid var(--border); margin-top: 8px; }
 .footer-text { font-size: 11px; color: var(--text3); line-height: 1.8; }
 .footer-version { font-size: 10px; color: var(--gold-dim); font-weight: 600; margin-bottom: 4px; }
 
