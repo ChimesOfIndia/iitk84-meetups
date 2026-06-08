@@ -143,6 +143,8 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
       maybe.length > 0 ? `\n🤔 Maybe (${maybe.length}):\n${maybe.map(r => '  ' + r.member_name).join('\n')}` : '',
       regrets.length > 0 ? `\n❌ Regrets (${regrets.length}):\n${regrets.map(r => '  ' + r.member_name).join('\n')}` : '',
       meetup.notes ? `\n📝 ${meetup.notes}` : '',
+      `\n📱 Join us on IITK84 MeetUps: https://iitk84-meetups.vercel.app`,
+      `👤 Update your profile & preferences: https://iitk84-meetups.vercel.app/members`,
     ].filter(Boolean).join('\n')
     return lines
   }
