@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { CITY_CLUSTERS } from '../lib/constants'
+import { REGIONS } from '../lib/constants'
 import MeetupForm from '../components/MeetupForm'
 import { format } from 'date-fns'
 
@@ -34,12 +34,12 @@ function TriggerForm({ onClose, onSaved }) {
           <select className="form-select" value={form.city_cluster} onChange={e => set('city_cluster', e.target.value)}>
             <option value="">Select city...</option>
             <optgroup label="India">
-              {CITY_CLUSTERS.filter(c => ['delhi','gurgaon','noida','bangalore','mumbai','other_india'].includes(c.value)).map(c => (
+              {REGIONS.filter(c => ['delhi','gurgaon','noida','bangalore','mumbai','other_india'].includes(c.value)).map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </optgroup>
             <optgroup label="USA">
-              {CITY_CLUSTERS.filter(c => ['bay_area','chicago','new_york','other_usa'].includes(c.value)).map(c => (
+              {REGIONS.filter(c => ['bay_area','chicago','new_york','other_usa'].includes(c.value)).map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </optgroup>
@@ -98,7 +98,7 @@ export default function VisitsPage() {
 
   const cityLabel = (t) => {
     if (t.custom_city) return t.custom_city
-    return CITY_CLUSTERS.find(c => c.value === t.city_cluster)?.label || t.city_cluster
+    return REGIONS.find(c => c.value === t.city_cluster)?.label || t.city_cluster
   }
 
   const markConverted = async (id) => {

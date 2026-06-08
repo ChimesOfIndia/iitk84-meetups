@@ -1,4 +1,4 @@
-export const CITY_CLUSTERS = [
+export const REGIONS = [
   { value: 'delhi', label: 'Delhi', group: 'India', ncr: true },
   { value: 'gurgaon', label: 'Gurgaon', group: 'India', ncr: true },
   { value: 'noida', label: 'Noida', group: 'India', ncr: true },
@@ -9,8 +9,14 @@ export const CITY_CLUSTERS = [
   { value: 'chicago', label: 'Chicago & Midwest', group: 'USA', ncr: false },
   { value: 'new_york', label: 'New York & Tri-State', group: 'USA', ncr: false },
   { value: 'other_usa', label: 'Other USA', group: 'USA', ncr: false },
+  { value: 'middle_east', label: 'Middle East', group: 'Rest of World', ncr: false },
+  { value: 'singapore', label: 'Singapore', group: 'Rest of World', ncr: false },
+  { value: 'australia', label: 'Australia', group: 'Rest of World', ncr: false },
   { value: 'rest_of_world', label: 'Rest of World', group: 'Rest of World', ncr: false },
 ]
+
+// Keep CITY_CLUSTERS as alias for backward compatibility
+export const CITY_CLUSTERS = REGIONS
 
 export const MEAL_TYPES = [
   { value: 'breakfast', label: 'Breakfast' },
@@ -32,6 +38,6 @@ export const RSVP_STATUS = {
 
 export const NCR_VALUES = ['delhi', 'gurgaon', 'noida']
 
-export const APP_VERSION = 'V1.0'
+export const APP_VERSION = 'V1.1'
 export const FEEDBACK_EMAIL = 'akmails@gmail.com'
 export const APP_AUTHOR = 'Anuj Kacker'

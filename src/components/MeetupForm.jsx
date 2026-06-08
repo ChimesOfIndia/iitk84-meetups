@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { CITY_CLUSTERS, MEAL_TYPES } from '../lib/constants'
+import { REGIONS, MEAL_TYPES } from '../lib/constants'
 import { useIdentity } from '../lib/IdentityContext'
 
 const emptyForm = {
@@ -37,11 +37,11 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const needsCustomCity = ['other_india', 'other_usa', 'rest_of_world'].includes(form.city_cluster)
+  const needsCustomRegion = ['other_india', 'other_usa', 'rest_of_world'].includes(form.city_cluster)
 
   const save = async () => {
     setError(null)
-    if (!form.city_cluster) { setError('Please select a city'); return }
+    if (!form.city_cluster) { setError('Please select a region'); return }
     if (!form.date_time) { setError('Please set a date and time'); return }
     setSaving(true)
     try {
@@ -54,10 +54,14 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
       const payload = {
         ...form,
         date_time: parsedDate,
-        anchor_id: identity?.id || null,
-        anchor_name: identity?.name || 'Unknown',
-        status: 'upcoming',
         visitor_names: form.meetup_type === 'visit' ? form.visitor_names : null,
+        status: 'upcoming',
+      }
+      // On create: set anchor from identity
+      // On edit: preserve existing anchor — do NOT overwrite
+      if (!existing) {
+        payload.anchor_id = identity?.id || null
+        payload.anchor_name = identity?.name || 'Unknown'
       }
       let result
       if (existing) {
@@ -96,28 +100,30 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
         )}
 
         <div className="form-group">
-          <label className="form-label">City</label>
+          <label className="form-label">Region</label>
           <select className="form-select" value={form.city_cluster} onChange={e => set('city_cluster', e.target.value)}>
-            <option value="">Select city...</option>
+            <option value="">Select region...</option>
             <optgroup label="— India —">
-              {CITY_CLUSTERS.filter(c => c.group === 'India').map(c => (
+              {REGIONS.filter(c => c.group === 'India').map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </optgroup>
             <optgroup label="— USA —">
-              {CITY_CLUSTERS.filter(c => c.group === 'USA').map(c => (
+              {REGIONS.filter(c => c.group === 'USA').map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </optgroup>
             <optgroup label="— Rest of World —">
-              <option value="rest_of_world">Rest of World</option>
+              {REGIONS.filter(c => c.group === 'Rest of World').map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
             </optgroup>
           </select>
         </div>
 
-        {needsCustomCity && (
+        {needsCustomRegion && (
           <div className="form-group">
-            <label className="form-label">Specify City</label>
+            <label className="form-label">Specify Location</label>
             <input className="form-input" placeholder="e.g. Kolkata" value={form.custom_city} onChange={e => set('custom_city', e.target.value)} />
           </div>
         )}

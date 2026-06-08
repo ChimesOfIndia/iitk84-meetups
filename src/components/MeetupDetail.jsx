@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useIdentity } from '../lib/IdentityContext'
-import { CITY_CLUSTERS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
+import { REGIONS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
 import { format } from 'date-fns'
 
 export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
@@ -15,7 +15,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const loadRsvps = async () => {
     const { data } = await supabase
       .from('rsvps')
-      .select('*, members(name, spouse_name)')
+      .select('*, members(name, spouse_name, dietary_pref, spouse_dietary_pref)')
       .eq('meetup_id', meetup.id)
     setRsvps(data || [])
     if (identity) {
@@ -80,22 +80,35 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const spouseCount = coming.filter(r => r.with_spouse).length
   const extraGuestsTotal = coming.reduce((sum, r) => sum + (r.extra_guests || 0), 0)
 
-  const cityLabel = () => {
+  // Dietary counts — confirmed only, member + spouse combined
+  const dietaryCounts = coming.reduce((acc, r) => {
+    const memberPref = r.members?.dietary_pref
+    if (memberPref === 'veg') acc.veg++
+    else if (memberPref === 'nonveg') acc.nonveg++
+    else acc.unspecified++
+
+    if (r.with_spouse) {
+      const spousePref = r.members?.spouse_dietary_pref
+      if (spousePref === 'veg') acc.veg++
+      else if (spousePref === 'nonveg') acc.nonveg++
+      else acc.unspecified++
+    }
+    return acc
+  }, { veg: 0, nonveg: 0, unspecified: 0 })
+
+  const regionLabel = () => {
     if (meetup.custom_city) return meetup.custom_city
     if (NCR_VALUES.includes(meetup.city_cluster)) return 'Delhi-NCR'
-    return CITY_CLUSTERS.find(c => c.value === meetup.city_cluster)?.label || meetup.city_cluster
+    return REGIONS.find(c => c.value === meetup.city_cluster)?.label || meetup.city_cluster
   }
 
-  const mealLabel = () => {
-    if (!meetup.meal_type) return ''
-    return MEAL_TYPES.find(m => m.value === meetup.meal_type)?.label || ''
-  }
+  const mealLabel = () => MEAL_TYPES.find(m => m.value === meetup.meal_type)?.label || ''
 
   const cardTitle = () => {
     const parts = []
     if (meetup.label) parts.push(meetup.label)
     if (meetup.meal_type) parts.push(mealLabel())
-    if (parts.length === 0) return meetup.meetup_type === 'visit' ? `${meetup.visitor_names} visiting` : `${cityLabel()} Meetup`
+    if (parts.length === 0) return meetup.meetup_type === 'visit' ? `${meetup.visitor_names} visiting` : `${regionLabel()} Meetup`
     return parts.join(' — ')
   }
 
@@ -107,13 +120,16 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const attendeeName = (r) => {
     const spouseName = r.members?.spouse_name
     if (r.with_spouse && spouseName) return `${r.member_name} + ${spouseName}`
-    if (r.with_spouse) return `${r.member_name} + spouse`
+    if (r.with_spouse) return `${r.member_name} + 1`
     return r.member_name
   }
 
   const shareText = () => {
+    const dietLine = coming.length > 0
+      ? `🌿 Veg: ${dietaryCounts.veg}  🍖 Non-Veg: ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? `  ❓ Not specified: ${dietaryCounts.unspecified}` : ''}`
+      : ''
     const lines = [
-      `🎉 IITK84 MeetUp — ${cityLabel()}`,
+      `🎉 IITK84 MeetUp — ${regionLabel()}`,
       meetup.meal_type ? `🍽️ ${mealLabel()}` : '',
       meetup.label ? `📌 ${meetup.label}` : '',
       meetup.meetup_type === 'visit' ? `✈️ Occasion: ${meetup.visitor_names} visiting` : '',
@@ -122,6 +138,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
       meetup.with_spouses ? '👫 With spouses' : '👤 Batchmates only',
       `⚓ Anchor: ${meetup.anchor_name}`,
       coming.length > 0 ? `\n✅ Coming (${coming.length} batchmates${spouseCount > 0 ? ` + ${spouseCount} spouses` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}):\n${coming.map(r => '  ' + attendeeName(r) + (r.extra_guests > 0 ? ` +${r.extra_guests} guest(s)` : '')).join('\n')}` : '',
+      dietLine ? `\n🍴 Dietary: ${dietLine}` : '',
       maybe.length > 0 ? `\n🤔 Maybe (${maybe.length}):\n${maybe.map(r => '  ' + r.member_name).join('\n')}` : '',
       regrets.length > 0 ? `\n❌ Regrets (${regrets.length}):\n${regrets.map(r => '  ' + r.member_name).join('\n')}` : '',
       meetup.notes ? `\n📝 ${meetup.notes}` : '',
@@ -145,7 +162,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <div className="card-city">{cityLabel()}</div>
+            <div className="card-city">{regionLabel()}</div>
             {meetup.meal_type && <span className="badge badge-visit">{mealLabel()}</span>}
           </div>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, marginBottom: 8 }}>{cardTitle()}</div>
@@ -212,6 +229,16 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
               <div className="rsvp-count"><span className="num">🤔 {maybe.length}</span><span className="lbl">maybe</span></div>
               {regrets.length > 0 && <div className="rsvp-count"><span className="num">❌ {regrets.length}</span><span className="lbl">regrets</span></div>}
             </div>
+
+            {/* Dietary counts */}
+            {coming.length > 0 && (
+              <div style={{ display: 'flex', gap: 12, marginTop: 8, padding: '8px 10px', background: 'var(--bg3)', borderRadius: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, width: '100%', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Dietary (confirmed)</span>
+                <span style={{ fontSize: 12 }}>🌿 Veg: <strong>{dietaryCounts.veg}</strong></span>
+                <span style={{ fontSize: 12 }}>🍖 Non-Veg: <strong>{dietaryCounts.nonveg}</strong></span>
+                {dietaryCounts.unspecified > 0 && <span style={{ fontSize: 12 }}>❓ Not specified: <strong>{dietaryCounts.unspecified}</strong></span>}
+              </div>
+            )}
 
             {coming.length > 0 && (
               <>

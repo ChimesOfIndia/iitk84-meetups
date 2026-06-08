@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { CITY_CLUSTERS, NCR_VALUES, DIETARY_PREFS } from '../lib/constants'
+import { REGIONS, NCR_VALUES, DIETARY_PREFS } from '../lib/constants'
 
 function MemberForm({ existing, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -52,14 +52,14 @@ function MemberForm({ existing, onClose, onSaved }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Cities (select all that apply)</label>
+          <label className="form-label">Regions (select all that apply)</label>
           <div className="city-chips">
             <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', marginBottom: 4, fontWeight: 600 }}>INDIA</div>
-            {CITY_CLUSTERS.filter(c => c.group === 'India').map(c => (
+            {REGIONS.filter(c => c.group === 'India').map(c => (
               <button key={c.value} className={`city-chip ${form.cities.includes(c.value) ? 'selected' : ''}`} onClick={() => toggleCity(c.value)}>{c.label}</button>
             ))}
             <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', margin: '6px 0 4px', fontWeight: 600 }}>USA</div>
-            {CITY_CLUSTERS.filter(c => c.group === 'USA').map(c => (
+            {REGIONS.filter(c => c.group === 'USA').map(c => (
               <button key={c.value} className={`city-chip ${form.cities.includes(c.value) ? 'selected' : ''}`} onClick={() => toggleCity(c.value)}>{c.label}</button>
             ))}
             <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', margin: '6px 0 4px', fontWeight: 600 }}>REST OF WORLD</div>
@@ -142,7 +142,7 @@ export default function MembersPage() {
     if (!cities || cities.length === 0) return 'No city set'
     return cities.map(c => {
       if (NCR_VALUES.includes(c)) return null
-      return CITY_CLUSTERS.find(cl => cl.value === c)?.label || c
+      return REGIONS.find(cl => cl.value === c)?.label || c
     }).filter(Boolean).join(', ') || 'Delhi-NCR'
   }
 
