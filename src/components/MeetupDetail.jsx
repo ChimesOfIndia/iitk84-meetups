@@ -129,6 +129,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
       ? `🌿 Veg: ${dietaryCounts.veg}  🍖 Non-Veg: ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? `  ❓ Not specified: ${dietaryCounts.unspecified}` : ''}`
       : ''
     const lines = [
+      `⚠️ TEST DATA — IGNORE`,
       `🎉 IITK84 MeetUp — ${regionLabel()}`,
       meetup.meal_type ? `🍽️ ${mealLabel()}` : '',
       meetup.label ? `📌 ${meetup.label}` : '',
