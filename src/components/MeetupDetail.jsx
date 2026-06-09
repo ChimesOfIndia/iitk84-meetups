@@ -149,24 +149,6 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     ].filter(Boolean).join('\n')
     return lines
   }
-      meetup.label ? `${meetup.label}` : '',
-      meetup.meetup_type === 'visit' ? `Occasion: ${meetup.visitor_names} visiting` : '',
-      ``,
-      meetup.date_time ? `📅 ${formatDate(meetup.date_time)}` : '',
-      meetup.venue_name ? `📍 ${meetup.venue_name}` : '',
-      meetup.with_spouses ? `With spouses` : `Batchmates only`,
-      `Anchor: ${meetup.anchor_name}`,
-      meetup.notes ? `\n${meetup.notes}` : '',
-      coming.length > 0 ? `\n✅ Coming (${comingLabel}):\n${coming.map(r => '  ' + attendeeName(r) + (r.extra_guests > 0 ? ` +${r.extra_guests} guest(s)` : '')).join('\n')}` : '',
-      dietLine ? `\n${dietLine}` : '',
-      maybe.length > 0 ? `\n🤔 Maybe (${maybe.length}):\n${maybe.map(r => '  ' + r.member_name).join('\n')}` : '',
-      regrets.length > 0 ? `\n❌ Regrets (${regrets.length}):\n${regrets.map(r => '  ' + r.member_name).join('\n')}` : '',
-      `\n---`,
-      `App: https://iitk84-meetups.vercel.app`,
-      `Update your profile: https://iitk84-meetups.vercel.app/members`,
-    ].filter(Boolean).join('\n')
-    return lines
-  }
 
   const handleShare = () => {
     if (navigator.share) {
