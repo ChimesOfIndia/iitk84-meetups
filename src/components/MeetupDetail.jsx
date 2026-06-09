@@ -126,11 +126,29 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
 
   const shareText = () => {
     const dietLine = coming.length > 0
-      ? `Dietary: 🌿 Veg: ${dietaryCounts.veg}  🍖 Non-Veg: ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? `  ❓ Not specified: ${dietaryCounts.unspecified}` : ''}`
+      ? `Dietary: Veg ${dietaryCounts.veg} | Non-Veg ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? ` | Not specified ${dietaryCounts.unspecified}` : ''}`
       : ''
     const comingLabel = `${coming.length} ${coming.length === 1 ? 'batchmate' : 'batchmates'}${spouseCount > 0 ? ` + ${spouseCount} ${spouseCount === 1 ? 'spouse' : 'spouses'}` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}`
     const lines = [
       `IITK84 MeetUp — ${regionLabel()}${meetup.meal_type ? ` (${mealLabel()})` : ''}`,
+      meetup.label ? meetup.label : '',
+      meetup.meetup_type === 'visit' ? `Visiting: ${meetup.visitor_names}` : '',
+      ``,
+      meetup.date_time ? `Date: ${formatDate(meetup.date_time)}` : '',
+      meetup.venue_name ? `Venue: ${meetup.venue_name}` : '',
+      meetup.with_spouses ? `With spouses` : `Batchmates only`,
+      `Anchor: ${meetup.anchor_name}`,
+      meetup.notes ? `\n${meetup.notes}` : '',
+      coming.length > 0 ? `\nComing (${comingLabel}):\n${coming.map(r => '  ' + attendeeName(r) + (r.extra_guests > 0 ? ` +${r.extra_guests} guest(s)` : '')).join('\n')}` : '',
+      dietLine ? `\n${dietLine}` : '',
+      maybe.length > 0 ? `\nMaybe (${maybe.length}):\n${maybe.map(r => '  ' + r.member_name).join('\n')}` : '',
+      regrets.length > 0 ? `\nRegrets (${regrets.length}):\n${regrets.map(r => '  ' + r.member_name).join('\n')}` : '',
+      `\n---`,
+      `App: https://iitk84-meetups.vercel.app`,
+      `Update your profile: https://iitk84-meetups.vercel.app/members`,
+    ].filter(Boolean).join('\n')
+    return lines
+  }
       meetup.label ? `${meetup.label}` : '',
       meetup.meetup_type === 'visit' ? `Occasion: ${meetup.visitor_names} visiting` : '',
       ``,
@@ -163,6 +181,9 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ fontSize: 20, padding: '4px 8px' }}>✕</button>
+        </div>
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
