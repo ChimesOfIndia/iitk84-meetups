@@ -126,25 +126,26 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
 
   const shareText = () => {
     const dietLine = coming.length > 0
-      ? `🌿 Veg: ${dietaryCounts.veg}  🍖 Non-Veg: ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? `  ❓ Not specified: ${dietaryCounts.unspecified}` : ''}`
+      ? `Dietary: 🌿 Veg: ${dietaryCounts.veg}  🍖 Non-Veg: ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? `  ❓ Not specified: ${dietaryCounts.unspecified}` : ''}`
       : ''
+    const comingLabel = `${coming.length} ${coming.length === 1 ? 'batchmate' : 'batchmates'}${spouseCount > 0 ? ` + ${spouseCount} ${spouseCount === 1 ? 'spouse' : 'spouses'}` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}`
     const lines = [
-      `⚠️ TEST DATA — IGNORE`,
-      `🎉 IITK84 MeetUp — ${regionLabel()}`,
-      meetup.meal_type ? `🍽️ ${mealLabel()}` : '',
-      meetup.label ? `📌 ${meetup.label}` : '',
-      meetup.meetup_type === 'visit' ? `✈️ Occasion: ${meetup.visitor_names} visiting` : '',
-      `📅 ${formatDate(meetup.date_time)}`,
+      `IITK84 MeetUp — ${regionLabel()}${meetup.meal_type ? ` (${mealLabel()})` : ''}`,
+      meetup.label ? `${meetup.label}` : '',
+      meetup.meetup_type === 'visit' ? `Occasion: ${meetup.visitor_names} visiting` : '',
+      ``,
+      meetup.date_time ? `📅 ${formatDate(meetup.date_time)}` : '',
       meetup.venue_name ? `📍 ${meetup.venue_name}` : '',
-      meetup.with_spouses ? '👫 With spouses' : '👤 Batchmates only',
-      `⚓ Anchor: ${meetup.anchor_name}`,
-      coming.length > 0 ? `\n✅ Coming (${coming.length} batchmates${spouseCount > 0 ? ` + ${spouseCount} spouses` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}):\n${coming.map(r => '  ' + attendeeName(r) + (r.extra_guests > 0 ? ` +${r.extra_guests} guest(s)` : '')).join('\n')}` : '',
-      dietLine ? `\n🍴 Dietary: ${dietLine}` : '',
+      meetup.with_spouses ? `With spouses` : `Batchmates only`,
+      `Anchor: ${meetup.anchor_name}`,
+      meetup.notes ? `\n${meetup.notes}` : '',
+      coming.length > 0 ? `\n✅ Coming (${comingLabel}):\n${coming.map(r => '  ' + attendeeName(r) + (r.extra_guests > 0 ? ` +${r.extra_guests} guest(s)` : '')).join('\n')}` : '',
+      dietLine ? `\n${dietLine}` : '',
       maybe.length > 0 ? `\n🤔 Maybe (${maybe.length}):\n${maybe.map(r => '  ' + r.member_name).join('\n')}` : '',
       regrets.length > 0 ? `\n❌ Regrets (${regrets.length}):\n${regrets.map(r => '  ' + r.member_name).join('\n')}` : '',
-      meetup.notes ? `\n📝 ${meetup.notes}` : '',
-      `\n📱 Join us on IITK84 MeetUps: https://iitk84-meetups.vercel.app`,
-      `👤 Update your profile & preferences: https://iitk84-meetups.vercel.app/members`,
+      `\n---`,
+      `App: https://iitk84-meetups.vercel.app`,
+      `Update your profile: https://iitk84-meetups.vercel.app/members`,
     ].filter(Boolean).join('\n')
     return lines
   }
