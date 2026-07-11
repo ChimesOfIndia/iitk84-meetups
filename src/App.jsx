@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react'
-import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import React from 'react'
+import { Routes, Route, NavLink } from 'react-router-dom'
 import { IdentityProvider, useIdentity } from './lib/IdentityContext'
 import IdentityPicker from './components/IdentityPicker'
 import MeetupsPage from './pages/MeetupsPage'
@@ -9,21 +9,24 @@ import PastPage from './pages/PastPage'
 import { APP_VERSION, FEEDBACK_EMAIL, APP_AUTHOR } from './lib/constants'
 
 function IdentityBar() {
-  const { identity, setShowPicker, clearIdentity } = useIdentity()
+  const { identity, setShowPicker, isAdmin } = useIdentity()
   return (
     <div className="identity-bar">
       {identity ? (
         <>
           <div>
-            <div className="identity-name">👤 {identity.name}</div>
-            <div className="identity-hint">Tap to switch</div>
+            <div className="identity-name">
+              👤 {identity.name}
+              {isAdmin && <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 10 }}>👑 Admin</span>}
+            </div>
+            <div className="identity-hint">Tap to switch identity</div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowPicker(true)}>Switch</button>
         </>
       ) : (
         <>
           <div className="identity-hint">You're browsing anonymously</div>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowPicker(true)}>Set Identity</button>
+          <button className="btn btn-secondary btn-sm" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.3)' }} onClick={() => setShowPicker(true)}>Set Identity</button>
         </>
       )}
     </div>
@@ -32,7 +35,6 @@ function IdentityBar() {
 
 function AppInner() {
   const { showPicker, setShowPicker } = useIdentity()
-  const location = useLocation()
 
   const navItems = [
     { to: '/', label: 'Meetups', icon: '🍽️' },
@@ -54,12 +56,7 @@ function AppInner() {
       </div>
       <nav className="bottom-nav">
         {navItems.map(item => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-          >
+          <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <span className="nav-icon">{item.icon}</span>
             {item.label}
           </NavLink>
@@ -69,7 +66,7 @@ function AppInner() {
       <footer className="app-footer">
         <div className="footer-version">{APP_VERSION}</div>
         <div className="footer-text">
-          Designed & vibe coded by {APP_AUTHOR}<br/>
+          Designed & vibe coded by {APP_AUTHOR}<br />
           Feedback / bugs: {FEEDBACK_EMAIL}
         </div>
       </footer>

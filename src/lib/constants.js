@@ -15,8 +15,26 @@ export const REGIONS = [
   { value: 'rest_of_world', label: 'Rest of World', group: 'Rest of World', ncr: false },
 ]
 
-// Keep CITY_CLUSTERS as alias for backward compatibility
 export const CITY_CLUSTERS = REGIONS
+
+export const TIMEZONES = [
+  { value: 'Asia/Kolkata', label: 'IST (India)', abbr: 'IST' },
+  { value: 'America/Los_Angeles', label: 'PT (Bay Area)', abbr: 'PT' },
+  { value: 'America/Chicago', label: 'CT (Chicago)', abbr: 'CT' },
+  { value: 'America/New_York', label: 'ET (New York)', abbr: 'ET' },
+  { value: 'Asia/Singapore', label: 'SGT (Singapore)', abbr: 'SGT' },
+  { value: 'Asia/Dubai', label: 'GST (Middle East)', abbr: 'GST' },
+  { value: 'Australia/Sydney', label: 'AEST (Australia)', abbr: 'AEST' },
+  { value: 'Europe/London', label: 'GMT/BST (UK)', abbr: 'GMT' },
+]
+
+export const REGION_TIMEZONE_MAP = {
+  delhi: 'Asia/Kolkata', gurgaon: 'Asia/Kolkata', noida: 'Asia/Kolkata',
+  bangalore: 'Asia/Kolkata', mumbai: 'Asia/Kolkata', other_india: 'Asia/Kolkata',
+  bay_area: 'America/Los_Angeles', chicago: 'America/Chicago', new_york: 'America/New_York',
+  other_usa: 'America/New_York', middle_east: 'Asia/Dubai', singapore: 'Asia/Singapore',
+  australia: 'Australia/Sydney', rest_of_world: 'Europe/London',
+}
 
 export const MEAL_TYPES = [
   { value: 'breakfast', label: 'Breakfast' },
@@ -38,6 +56,64 @@ export const RSVP_STATUS = {
 
 export const NCR_VALUES = ['delhi', 'gurgaon', 'noida']
 
-export const APP_VERSION = 'V1.1'
+export const APP_VERSION = 'V2.0'
 export const FEEDBACK_EMAIL = 'akmails@gmail.com'
 export const APP_AUTHOR = 'Anuj Kacker'
+
+// Utility: format a UTC datetime in a specific timezone
+export function formatInTZ(utcDateStr, timezone, fmt = 'short') {
+  if (!utcDateStr) return ''
+  try {
+    const date = new Date(utcDateStr)
+    const abbr = TIMEZONES.find(t => t.value === timezone)?.abbr || ''
+    const formatted = date.toLocaleString('en-IN', {
+      timeZone: timezone,
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    return `${formatted} ${abbr}`
+  } catch {
+    return utcDateStr
+  }
+}
+
+// Convert a local datetime-local string + timezone to UTC ISO
+export function localToUTC(localStr, timezone) {
+  if (!localStr) return null
+  try {
+    // Create a date as if it's in the given timezone
+    const [datePart, timePart] = localStr.split('T')
+    const [year, month, day] = datePart.split('-').map(Number)
+    const [hour, minute] = timePart.split(':').map(Number)
+    // Use Intl to find offset
+    const testDate = new Date(Date.UTC(year, month - 1, day, hour, minute))
+    const localStr2 = testDate.toLocaleString('en-CA', { timeZone: timezone, hour12: false })
+    const localDate = new Date(localStr2.replace(',', ''))
+    const offset = testDate - localDate
+    return new Date(testDate.getTime() + offset).toISOString()
+  } catch {
+    return new Date(localStr).toISOString()
+  }
+}
+
+// Convert UTC ISO to datetime-local string in a timezone
+export function utcToLocal(utcStr, timezone) {
+  if (!utcStr) return ''
+  try {
+    const date = new Date(utcStr)
+    const parts = date.toLocaleString('en-CA', {
+      timeZone: timezone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    })
+    // en-CA gives YYYY-MM-DD, HH:MM
+    return parts.replace(', ', 'T').replace(',', 'T').substring(0, 16)
+  } catch {
+    return utcStr.slice(0, 16)
+  }
+}

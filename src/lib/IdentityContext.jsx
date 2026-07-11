@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState } from 'react'
 
 const IdentityContext = createContext(null)
 
@@ -22,8 +22,10 @@ export function IdentityProvider({ children }) {
     localStorage.removeItem('iitk84_identity')
   }
 
+  const isAdmin = identity?.is_admin === true
+
   return (
-    <IdentityContext.Provider value={{ identity, saveIdentity, clearIdentity, showPicker, setShowPicker }}>
+    <IdentityContext.Provider value={{ identity, saveIdentity, clearIdentity, showPicker, setShowPicker, isAdmin }}>
       {children}
     </IdentityContext.Provider>
   )

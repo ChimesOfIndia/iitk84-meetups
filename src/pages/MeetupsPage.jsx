@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { REGIONS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
+import { REGIONS, NCR_VALUES, MEAL_TYPES, formatInTZ } from '../lib/constants'
 import MeetupForm from '../components/MeetupForm'
 import MeetupDetail from '../components/MeetupDetail'
-import { format } from 'date-fns'
 
 const FILTER_GROUPS = [
   { label: 'All', value: 'all' },
@@ -44,24 +43,18 @@ export default function MeetupsPage() {
         .from('rsvps')
         .select('meetup_id, status, with_spouse, extra_guests, members(dietary_pref, spouse_dietary_pref)')
         .in('meetup_id', data.map(m => m.id))
-
-      const counts = {}
-      const dietary = {}
+      const counts = {}, dietary = {}
       ;(rsvps || []).forEach(r => {
         if (!counts[r.meetup_id]) counts[r.meetup_id] = { coming: 0, maybe: 0, regrets: 0, spouses: 0, extras: 0 }
         if (!dietary[r.meetup_id]) dietary[r.meetup_id] = { veg: 0, nonveg: 0, unspecified: 0 }
-
         if (r.status === 'coming') {
           counts[r.meetup_id].coming++
           if (r.with_spouse) counts[r.meetup_id].spouses++
           counts[r.meetup_id].extras += (r.extra_guests || 0)
-
-          // Dietary counts for confirmed only
           const mp = r.members?.dietary_pref
           if (mp === 'veg') dietary[r.meetup_id].veg++
           else if (mp === 'nonveg') dietary[r.meetup_id].nonveg++
           else dietary[r.meetup_id].unspecified++
-
           if (r.with_spouse) {
             const sp = r.members?.spouse_dietary_pref
             if (sp === 'veg') dietary[r.meetup_id].veg++
@@ -72,8 +65,7 @@ export default function MeetupsPage() {
         if (r.status === 'maybe') counts[r.meetup_id].maybe++
         if (r.status === 'regrets') counts[r.meetup_id].regrets++
       })
-      setRsvpCounts(counts)
-      setDietaryCounts(dietary)
+      setRsvpCounts(counts); setDietaryCounts(dietary)
     }
     setLoading(false)
   }
@@ -102,11 +94,9 @@ export default function MeetupsPage() {
     return m.city_cluster === filter
   }
 
-  const filtered = meetups.filter(matchesFilter)
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = [...meetups.filter(matchesFilter)].sort((a, b) => {
     if (sortBy === 'date') return new Date(a.date_time) - new Date(b.date_time)
-    if (sortBy === 'city') return regionLabel(a).localeCompare(regionLabel(b))
-    return 0
+    return regionLabel(a).localeCompare(regionLabel(b))
   })
 
   return (
@@ -137,10 +127,11 @@ export default function MeetupsPage() {
           ) : sorted.map(m => {
             const counts = rsvpCounts[m.id] || { coming: 0, maybe: 0, regrets: 0, spouses: 0, extras: 0 }
             const diet = dietaryCounts[m.id] || { veg: 0, nonveg: 0, unspecified: 0 }
+            const tz = m.timezone || 'Asia/Kolkata'
             return (
               <div key={m.id} className="card card-accent" onClick={() => setSelected(m)}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                  <div className="card-city">{regionLabel(m)}</div>
+                  <div className="card-region">{regionLabel(m)}</div>
                   {m.meal_type && <span className="badge badge-visit" style={{ fontSize: 10 }}>{mealLabel(m)}</span>}
                 </div>
                 <div className="card-header">
@@ -150,23 +141,19 @@ export default function MeetupsPage() {
                   </span>
                 </div>
                 <div className="card-meta">
-                  {m.date_time && <div className="meta-item">📅 {format(new Date(m.date_time), 'EEE, d MMM • h:mm a')}</div>}
+                  {m.date_time && <div className="meta-item">📅 {formatInTZ(m.date_time, tz)}</div>}
                   {m.venue_name && <div className="meta-item">📍 {m.venue_name}</div>}
                   {m.with_spouses && <div className="meta-item">👫 With spouses</div>}
                   <div className="meta-item">⚓ {m.anchor_name}</div>
                 </div>
                 <div className="rsvp-bar">
-                  <div className="rsvp-count">
-                    <span className="num">✅ {counts.coming}</span>
-                    <span className="lbl">batchmates{counts.spouses > 0 ? ` +${counts.spouses} sp.` : ''}{counts.extras > 0 ? ` +${counts.extras} guests` : ''}</span>
-                  </div>
+                  <div className="rsvp-count"><span className="num">✅ {counts.coming}</span><span className="lbl">batchmates{counts.spouses > 0 ? ` +${counts.spouses} sp.` : ''}</span></div>
                   <div className="rsvp-count"><span className="num">🤔 {counts.maybe}</span><span className="lbl">maybe</span></div>
                   {counts.regrets > 0 && <div className="rsvp-count"><span className="num">❌ {counts.regrets}</span><span className="lbl">regrets</span></div>}
                 </div>
                 {counts.coming > 0 && (
-                  <div style={{ display: 'flex', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text2)' }}>
-                    <span>🌿 {diet.veg}</span>
-                    <span>🍖 {diet.nonveg}</span>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border2)', fontSize: 11, color: 'var(--text2)' }}>
+                    <span>🌿 {diet.veg}</span><span>🍖 {diet.nonveg}</span>
                     {diet.unspecified > 0 && <span>❓ {diet.unspecified}</span>}
                   </div>
                 )}
@@ -177,7 +164,6 @@ export default function MeetupsPage() {
       </div>
 
       <button className="fab" onClick={() => setShowForm(true)}>+</button>
-
       {showForm && <MeetupForm onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load() }} />}
       {selected && !editing && (
         <MeetupDetail meetup={selected} onClose={() => setSelected(null)} onEdit={() => { setEditing(selected); setSelected(null) }} onDeleted={() => { setSelected(null); load() }} />

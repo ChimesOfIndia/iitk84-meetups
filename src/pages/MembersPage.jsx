@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { REGIONS, NCR_VALUES, DIETARY_PREFS } from '../lib/constants'
+import { useIdentity } from '../lib/IdentityContext'
 
 function MemberForm({ existing, onClose, onSaved }) {
+  const { isAdmin } = useIdentity()
   const [form, setForm] = useState({
     name: existing?.name || '',
     cities: existing?.cities || [],
@@ -11,27 +13,26 @@ function MemberForm({ existing, onClose, onSaved }) {
     spouse_name: existing?.spouse_name || '',
     dietary_pref: existing?.dietary_pref || '',
     spouse_dietary_pref: existing?.spouse_dietary_pref || '',
+    is_admin: existing?.is_admin || false,
   })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const toggleCity = (val) => {
-    setForm(f => ({
-      ...f,
-      cities: f.cities.includes(val) ? f.cities.filter(c => c !== val) : [...f.cities, val]
-    }))
+    setForm(f => ({ ...f, cities: f.cities.includes(val) ? f.cities.filter(c => c !== val) : [...f.cities, val] }))
   }
 
   const save = async () => {
     if (!form.name.trim()) return alert('Please enter a name')
     setSaving(true)
+    const payload = { ...form }
+    if (!isAdmin) delete payload.is_admin // only admin can change admin flag
     if (existing) {
-      await supabase.from('members').update(form).eq('id', existing.id)
+      await supabase.from('members').update(payload).eq('id', existing.id)
     } else {
-      await supabase.from('members').insert(form)
+      await supabase.from('members').insert(payload)
     }
-    setSaving(false)
-    onSaved()
+    setSaving(false); onSaved()
   }
 
   const handleDelete = async () => {
@@ -42,8 +43,9 @@ function MemberForm({ existing, onClose, onSaved }) {
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
+      <div className="sheet" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
+        <button className="sheet-close" onClick={onClose}>✕</button>
         <div className="sheet-title">{existing ? 'Edit Member' : 'Add Member'}</div>
 
         <div className="form-group">
@@ -54,16 +56,18 @@ function MemberForm({ existing, onClose, onSaved }) {
         <div className="form-group">
           <label className="form-label">Regions (select all that apply)</label>
           <div className="city-chips">
-            <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', marginBottom: 4, fontWeight: 600 }}>INDIA</div>
+            <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', marginBottom: 4, fontWeight: 700, textTransform: 'uppercase' }}>India</div>
             {REGIONS.filter(c => c.group === 'India').map(c => (
               <button key={c.value} className={`city-chip ${form.cities.includes(c.value) ? 'selected' : ''}`} onClick={() => toggleCity(c.value)}>{c.label}</button>
             ))}
-            <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', margin: '6px 0 4px', fontWeight: 600 }}>USA</div>
+            <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', margin: '6px 0 4px', fontWeight: 700, textTransform: 'uppercase' }}>USA</div>
             {REGIONS.filter(c => c.group === 'USA').map(c => (
               <button key={c.value} className={`city-chip ${form.cities.includes(c.value) ? 'selected' : ''}`} onClick={() => toggleCity(c.value)}>{c.label}</button>
             ))}
-            <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', margin: '6px 0 4px', fontWeight: 600 }}>REST OF WORLD</div>
-            <button className={`city-chip ${form.cities.includes('rest_of_world') ? 'selected' : ''}`} onClick={() => toggleCity('rest_of_world')}>Rest of World</button>
+            <div style={{ width: '100%', fontSize: 10, color: 'var(--text3)', margin: '6px 0 4px', fontWeight: 700, textTransform: 'uppercase' }}>Rest of World</div>
+            {REGIONS.filter(c => c.group === 'Rest of World').map(c => (
+              <button key={c.value} className={`city-chip ${form.cities.includes(c.value) ? 'selected' : ''}`} onClick={() => toggleCity(c.value)}>{c.label}</button>
+            ))}
           </div>
         </div>
 
@@ -103,10 +107,21 @@ function MemberForm({ existing, onClose, onSaved }) {
           </div>
         </div>
 
+        {isAdmin && (
+          <div className="form-group">
+            <label className="form-label">Admin Access</label>
+            <div className="toggle-group">
+              <button className={`toggle-btn ${form.is_admin ? 'active' : ''}`} onClick={() => set('is_admin', true)} style={{ borderColor: form.is_admin ? 'var(--admin)' : undefined }}>👑 Admin</button>
+              <button className={`toggle-btn ${!form.is_admin ? 'active' : ''}`} onClick={() => set('is_admin', false)}>Regular member</button>
+            </div>
+            <div className="form-hint">Only visible to you as Admin</div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={save} disabled={saving}>{saving ? 'Saving...' : existing ? 'Save Changes' : 'Add Member'}</button>
-          {existing && <button className="btn btn-danger" onClick={handleDelete}>Delete</button>}
+          {existing && (isAdmin || true) && <button className="btn btn-danger" onClick={handleDelete}>Delete</button>}
         </div>
       </div>
     </div>
@@ -114,6 +129,7 @@ function MemberForm({ existing, onClose, onSaved }) {
 }
 
 export default function MembersPage() {
+  const { identity, isAdmin } = useIdentity()
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -124,8 +140,7 @@ export default function MembersPage() {
   const load = async () => {
     setLoading(true)
     const { data } = await supabase.from('members').select('*').order('name')
-    setMembers(data || [])
-    setLoading(false)
+    setMembers(data || []); setLoading(false)
   }
 
   useEffect(() => { load() }, [])
@@ -139,11 +154,12 @@ export default function MembersPage() {
   })
 
   const cityLabel = (cities) => {
-    if (!cities || cities.length === 0) return 'No city set'
-    return cities.map(c => {
-      if (NCR_VALUES.includes(c)) return null
+    if (!cities || cities.length === 0) return 'No region set'
+    const labels = cities.map(c => {
+      if (NCR_VALUES.includes(c)) return 'Delhi-NCR'
       return REGIONS.find(cl => cl.value === c)?.label || c
-    }).filter(Boolean).join(', ') || 'Delhi-NCR'
+    })
+    return [...new Set(labels)].join(', ')
   }
 
   const dietLabel = (pref) => pref === 'veg' ? '🌿' : pref === 'nonveg' ? '🍖' : ''
@@ -158,6 +174,9 @@ export default function MembersPage() {
     { value: 'chicago', label: 'Chicago' },
     { value: 'new_york', label: 'New York' },
     { value: 'other_usa', label: 'Other USA' },
+    { value: 'middle_east', label: 'Middle East' },
+    { value: 'singapore', label: 'Singapore' },
+    { value: 'australia', label: 'Australia' },
     { value: 'rest_of_world', label: 'RoW' },
   ]
 
@@ -165,6 +184,7 @@ export default function MembersPage() {
     <div>
       <div className="top-bar">
         <div className="brand">IITK84 <span>MeetUps</span></div>
+        {isAdmin && <span className="badge badge-admin">👑 Admin</span>}
       </div>
       <div className="page">
         <div className="page-header">
@@ -182,16 +202,14 @@ export default function MembersPage() {
 
         {loading ? <div className="spinner">Loading...</div> :
           filtered.length === 0 ? (
-            <div className="empty">
-              <div className="empty-icon">👥</div>
-              <div className="empty-text">No members found</div>
-            </div>
+            <div className="empty"><div className="empty-icon">👥</div><div className="empty-text">No members found</div></div>
           ) : filtered.map(m => (
             <div key={m.id} className="member-card" style={{ cursor: 'pointer' }} onClick={() => setEditing(m)}>
-              <div className="member-avatar">{m.name[0]}</div>
+              <div className="member-avatar" style={{ background: m.is_admin ? 'var(--admin)' : 'var(--navy)' }}>{m.name[0]}</div>
               <div className="member-info">
                 <div className="member-name">
                   {m.name} {dietLabel(m.dietary_pref)}
+                  {m.is_admin && <span className="badge badge-admin" style={{ marginLeft: 6, fontSize: 10 }}>👑 Admin</span>}
                   {m.on_main_wa_group && <span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 4 }}>●WA</span>}
                 </div>
                 {m.spouse_name && <div style={{ fontSize: 11, color: 'var(--text3)' }}>+{m.spouse_name} {dietLabel(m.spouse_dietary_pref)}</div>}

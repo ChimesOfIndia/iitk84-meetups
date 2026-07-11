@@ -1,71 +1,71 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useIdentity } from '../lib/IdentityContext'
-import { REGIONS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
-import { format } from 'date-fns'
+import { REGIONS, NCR_VALUES, MEAL_TYPES, TIMEZONES, formatInTZ } from '../lib/constants'
 
 export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
-  const { identity, setShowPicker } = useIdentity()
+  const { identity, isAdmin } = useIdentity()
   const [rsvps, setRsvps] = useState([])
   const [myRsvp, setMyRsvp] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [extraGuests, setExtraGuests] = useState(0)
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestForm, setShowSuggestForm] = useState(false)
+  const [suggestForm, setSuggestForm] = useState({ venue_name: '', maps_url: '', comment: '' })
+  const [savingSuggestion, setSavingSuggestion] = useState(false)
 
-  const loadRsvps = async () => {
-    const { data } = await supabase
-      .from('rsvps')
-      .select('*, members(name, spouse_name, dietary_pref, spouse_dietary_pref)')
-      .eq('meetup_id', meetup.id)
-    setRsvps(data || [])
+  const loadData = async () => {
+    const [rsvpRes, sugRes] = await Promise.all([
+      supabase.from('rsvps').select('*, members(name, spouse_name, dietary_pref, spouse_dietary_pref)').eq('meetup_id', meetup.id),
+      supabase.from('venue_suggestions').select('*').eq('meetup_id', meetup.id).order('created_at')
+    ])
+    setRsvps(rsvpRes.data || [])
+    setSuggestions(sugRes.data || [])
     if (identity) {
-      const mine = (data || []).find(r => r.member_id === identity.id)
+      const mine = (rsvpRes.data || []).find(r => r.member_id === identity.id)
       setMyRsvp(mine || null)
       setExtraGuests(mine?.extra_guests || 0)
     }
     setLoading(false)
   }
 
-  useEffect(() => { loadRsvps() }, [meetup.id, identity])
+  useEffect(() => { loadData() }, [meetup.id, identity])
+
+  const coming = rsvps.filter(r => r.status === 'coming')
+  const maybe = rsvps.filter(r => r.status === 'maybe')
+  const regrets = rsvps.filter(r => r.status === 'regrets')
+  const spouseCount = coming.filter(r => r.with_spouse).length
+  const extraGuestsTotal = coming.reduce((sum, r) => sum + (r.extra_guests || 0), 0)
+
+  // Edit permission: anchor, confirmed attendees, or admin
+  const isAnchor = identity?.id === meetup.anchor_id || identity?.name === meetup.anchor_name
+  const isConfirmed = coming.some(r => r.member_id === identity?.id)
+  const canEdit = isAdmin || isAnchor || isConfirmed
 
   const handleRsvp = async (status) => {
-    if (!identity) { setShowPicker(true); return }
+    if (!identity) { return }
     setSaving(true)
     if (myRsvp && myRsvp.status === status) {
       await supabase.from('rsvps').delete().eq('id', myRsvp.id)
       setMyRsvp(null)
     } else {
-      const payload = {
-        meetup_id: meetup.id,
-        member_id: identity.id,
-        member_name: identity.name,
-        status,
-        with_spouse: myRsvp?.with_spouse || false,
-        extra_guests: extraGuests,
-      }
-      if (myRsvp) {
-        await supabase.from('rsvps').update(payload).eq('id', myRsvp.id)
-      } else {
-        await supabase.from('rsvps').insert(payload)
-      }
+      const payload = { meetup_id: meetup.id, member_id: identity.id, member_name: identity.name, status, with_spouse: myRsvp?.with_spouse || false, extra_guests: extraGuests }
+      if (myRsvp) { await supabase.from('rsvps').update(payload).eq('id', myRsvp.id) }
+      else { await supabase.from('rsvps').insert(payload) }
     }
-    await loadRsvps()
-    setSaving(false)
+    await loadData(); setSaving(false)
   }
 
   const toggleSpouse = async () => {
     if (!myRsvp) return
     await supabase.from('rsvps').update({ with_spouse: !myRsvp.with_spouse }).eq('id', myRsvp.id)
-    await loadRsvps()
+    await loadData()
   }
 
   const updateExtraGuests = async (val) => {
-    const n = Math.max(0, val)
-    setExtraGuests(n)
-    if (myRsvp) {
-      await supabase.from('rsvps').update({ extra_guests: n }).eq('id', myRsvp.id)
-      await loadRsvps()
-    }
+    const n = Math.max(0, val); setExtraGuests(n)
+    if (myRsvp) { await supabase.from('rsvps').update({ extra_guests: n }).eq('id', myRsvp.id); await loadData() }
   }
 
   const handleDelete = async () => {
@@ -74,24 +74,35 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     onDeleted()
   }
 
-  const coming = rsvps.filter(r => r.status === 'coming')
-  const maybe = rsvps.filter(r => r.status === 'maybe')
-  const regrets = rsvps.filter(r => r.status === 'regrets')
-  const spouseCount = coming.filter(r => r.with_spouse).length
-  const extraGuestsTotal = coming.reduce((sum, r) => sum + (r.extra_guests || 0), 0)
+  const submitSuggestion = async () => {
+    if (!suggestForm.venue_name.trim()) return
+    setSavingSuggestion(true)
+    await supabase.from('venue_suggestions').insert({
+      meetup_id: meetup.id,
+      suggested_by_name: identity?.name || 'Anonymous',
+      venue_name: suggestForm.venue_name,
+      maps_url: suggestForm.maps_url,
+      comment: suggestForm.comment,
+    })
+    setSuggestForm({ venue_name: '', maps_url: '', comment: '' })
+    setShowSuggestForm(false)
+    setSavingSuggestion(false)
+    await loadData()
+  }
 
-  // Dietary counts — confirmed only, member + spouse combined
+  const confirmVenue = async (s) => {
+    if (!confirm(`Confirm "${s.venue_name}" as the venue? This will update the meetup.`)) return
+    await supabase.from('venue_suggestions').update({ is_confirmed: true }).eq('id', s.id)
+    await supabase.from('meetups').update({ venue_name: s.venue_name, venue_maps_url: s.maps_url || meetup.venue_maps_url }).eq('id', meetup.id)
+    await loadData()
+  }
+
   const dietaryCounts = coming.reduce((acc, r) => {
-    const memberPref = r.members?.dietary_pref
-    if (memberPref === 'veg') acc.veg++
-    else if (memberPref === 'nonveg') acc.nonveg++
-    else acc.unspecified++
-
+    const mp = r.members?.dietary_pref
+    if (mp === 'veg') acc.veg++; else if (mp === 'nonveg') acc.nonveg++; else acc.unspecified++
     if (r.with_spouse) {
-      const spousePref = r.members?.spouse_dietary_pref
-      if (spousePref === 'veg') acc.veg++
-      else if (spousePref === 'nonveg') acc.nonveg++
-      else acc.unspecified++
+      const sp = r.members?.spouse_dietary_pref
+      if (sp === 'veg') acc.veg++; else if (sp === 'nonveg') acc.nonveg++; else acc.unspecified++
     }
     return acc
   }, { veg: 0, nonveg: 0, unspecified: 0 })
@@ -112,29 +123,25 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     return parts.join(' — ')
   }
 
-  const formatDate = (dt) => {
-    if (!dt) return ''
-    return format(new Date(dt), 'EEE, d MMM yyyy • h:mm a')
-  }
-
   const attendeeName = (r) => {
-    const spouseName = r.members?.spouse_name
-    if (r.with_spouse && spouseName) return `${r.member_name} + ${spouseName}`
+    const sn = r.members?.spouse_name
+    if (r.with_spouse && sn) return `${r.member_name} + ${sn}`
     if (r.with_spouse) return `${r.member_name} + 1`
     return r.member_name
   }
 
+  const tz = meetup.timezone || 'Asia/Kolkata'
+  const tzAbbr = TIMEZONES.find(t => t.value === tz)?.abbr || ''
+
   const shareText = () => {
-    const dietLine = coming.length > 0
-      ? `Dietary: Veg ${dietaryCounts.veg} | Non-Veg ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? ` | Not specified ${dietaryCounts.unspecified}` : ''}`
-      : ''
     const comingLabel = `${coming.length} ${coming.length === 1 ? 'batchmate' : 'batchmates'}${spouseCount > 0 ? ` + ${spouseCount} ${spouseCount === 1 ? 'spouse' : 'spouses'}` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}`
+    const dietLine = coming.length > 0 ? `Dietary: Veg ${dietaryCounts.veg} | Non-Veg ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? ` | Not specified ${dietaryCounts.unspecified}` : ''}` : ''
     const lines = [
       `IITK84 MeetUp — ${regionLabel()}${meetup.meal_type ? ` (${mealLabel()})` : ''}`,
-      meetup.label ? meetup.label : '',
+      meetup.label || '',
       meetup.meetup_type === 'visit' ? `Visiting: ${meetup.visitor_names}` : '',
       ``,
-      meetup.date_time ? `Date: ${formatDate(meetup.date_time)}` : '',
+      meetup.date_time ? `Date: ${formatInTZ(meetup.date_time, tz)}` : '',
       meetup.venue_name ? `Venue: ${meetup.venue_name}` : '',
       meetup.with_spouses ? `With spouses` : `Batchmates only`,
       `Anchor: ${meetup.anchor_name}`,
@@ -145,34 +152,31 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
       regrets.length > 0 ? `\nRegrets (${regrets.length}):\n${regrets.map(r => '  ' + r.member_name).join('\n')}` : '',
       `\n---`,
       `App: https://iitk84-meetups.vercel.app`,
-      `Update your profile: https://iitk84-meetups.vercel.app/members`,
     ].filter(Boolean).join('\n')
     return lines
   }
 
   const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({ text: shareText() })
-    } else {
-      navigator.clipboard.writeText(shareText())
-      alert('Copied to clipboard! Paste in WhatsApp.')
-    }
+    const text = shareText()
+    if (navigator.share) { navigator.share({ text }) }
+    else { navigator.clipboard.writeText(text); alert('Copied to clipboard! Paste in WhatsApp.') }
   }
+
+  const hasConfirmedVenue = suggestions.some(s => s.is_confirmed)
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
+      <div className="sheet" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ fontSize: 20, padding: '4px 8px' }}>✕</button>
-        </div>
+        <button className="sheet-close" onClick={onClose}>✕</button>
 
+        {/* Header */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <div className="card-city">{regionLabel()}</div>
+            <div className="card-region">{regionLabel()}</div>
             {meetup.meal_type && <span className="badge badge-visit">{mealLabel()}</span>}
           </div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, marginBottom: 8 }}>{cardTitle()}</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--navy)', marginBottom: 8 }}>{cardTitle()}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span className={`badge ${meetup.meetup_type === 'visit' ? 'badge-visit' : 'badge-local'}`}>
               {meetup.meetup_type === 'visit' ? '✈️ Visit' : '🏠 Local'}
@@ -182,7 +186,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
         </div>
 
         <div className="card-meta">
-          {meetup.date_time && <div className="meta-item">📅 {formatDate(meetup.date_time)}</div>}
+          {meetup.date_time && <div className="meta-item">📅 {formatInTZ(meetup.date_time, tz)}</div>}
           {meetup.venue_name && (
             <div className="meta-item">
               📍 {meetup.venue_maps_url
@@ -197,14 +201,15 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
 
         <div className="divider" />
 
-        {/* RSVP section */}
+        {/* RSVP */}
         {meetup.status === 'upcoming' && (
           <>
-            <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>Your RSVP</div>
+            <div className="section-title" style={{ marginBottom: 8 }}>Your RSVP</div>
+            {!identity && <div className="alert alert-info" style={{ marginBottom: 8 }}>Set your identity to RSVP</div>}
             <div className="rsvp-actions">
-              <button className={`rsvp-btn coming ${myRsvp?.status === 'coming' ? 'active' : ''}`} onClick={() => handleRsvp('coming')} disabled={saving}>✅ Coming</button>
-              <button className={`rsvp-btn maybe ${myRsvp?.status === 'maybe' ? 'active' : ''}`} onClick={() => handleRsvp('maybe')} disabled={saving}>🤔 Maybe</button>
-              <button className={`rsvp-btn regrets ${myRsvp?.status === 'regrets' ? 'active' : ''}`} onClick={() => handleRsvp('regrets')} disabled={saving}>❌ Regrets</button>
+              <button className={`rsvp-btn coming ${myRsvp?.status === 'coming' ? 'active' : ''}`} onClick={() => handleRsvp('coming')} disabled={saving || !identity}>✅ Coming</button>
+              <button className={`rsvp-btn maybe ${myRsvp?.status === 'maybe' ? 'active' : ''}`} onClick={() => handleRsvp('maybe')} disabled={saving || !identity}>🤔 Maybe</button>
+              <button className={`rsvp-btn regrets ${myRsvp?.status === 'regrets' ? 'active' : ''}`} onClick={() => handleRsvp('regrets')} disabled={saving || !identity}>❌ Regrets</button>
             </div>
 
             {myRsvp?.status === 'coming' && (
@@ -215,10 +220,10 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
                   </button>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Additional guests</span>
+                  <span className="section-title">Additional guests</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => updateExtraGuests(extraGuests - 1)}>−</button>
-                    <span style={{ fontSize: 14, fontWeight: 600, minWidth: 20, textAlign: 'center' }}>{extraGuests}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{extraGuests}</span>
                     <button className="btn btn-secondary btn-sm" onClick={() => updateExtraGuests(extraGuests + 1)}>+</button>
                   </div>
                 </div>
@@ -228,19 +233,18 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
           </>
         )}
 
-        {/* Counts */}
+        {/* Counts & Attendees */}
         {loading ? <div className="spinner">Loading...</div> : (
           <>
             <div className="rsvp-bar">
-              <div className="rsvp-count"><span className="num">✅ {coming.length}</span><span className="lbl">batchmates{spouseCount > 0 ? ` +${spouseCount} spouses` : ''}{extraGuestsTotal > 0 ? ` +${extraGuestsTotal} guests` : ''}</span></div>
+              <div className="rsvp-count"><span className="num">✅ {coming.length}</span><span className="lbl">batchmates{spouseCount > 0 ? ` +${spouseCount} sp.` : ''}{extraGuestsTotal > 0 ? ` +${extraGuestsTotal} guests` : ''}</span></div>
               <div className="rsvp-count"><span className="num">🤔 {maybe.length}</span><span className="lbl">maybe</span></div>
               {regrets.length > 0 && <div className="rsvp-count"><span className="num">❌ {regrets.length}</span><span className="lbl">regrets</span></div>}
             </div>
 
-            {/* Dietary counts */}
             {coming.length > 0 && (
-              <div style={{ display: 'flex', gap: 12, marginTop: 8, padding: '8px 10px', background: 'var(--bg3)', borderRadius: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, width: '100%', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Dietary (confirmed)</span>
+              <div className="dietary-box" style={{ marginTop: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, width: '100%', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Dietary (confirmed)</span>
                 <span style={{ fontSize: 12 }}>🌿 Veg: <strong>{dietaryCounts.veg}</strong></span>
                 <span style={{ fontSize: 12 }}>🍖 Non-Veg: <strong>{dietaryCounts.nonveg}</strong></span>
                 {dietaryCounts.unspecified > 0 && <span style={{ fontSize: 12 }}>❓ Not specified: <strong>{dietaryCounts.unspecified}</strong></span>}
@@ -249,43 +253,92 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
 
             {coming.length > 0 && (
               <>
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 12, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Coming</div>
+                <div className="section-title" style={{ marginTop: 14, marginBottom: 6 }}>Coming</div>
                 <div className="attendee-list">
-                  {coming.map(r => (
-                    <div key={r.id} className="attendee-chip">
-                      {attendeeName(r)}{r.extra_guests > 0 && <span className="spouse-tag">+{r.extra_guests}</span>}
-                    </div>
-                  ))}
+                  {coming.map(r => <div key={r.id} className="attendee-chip">{attendeeName(r)}{r.extra_guests > 0 && <span className="spouse-tag">+{r.extra_guests}</span>}</div>)}
                 </div>
               </>
             )}
-
             {maybe.length > 0 && (
               <>
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 12, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Maybe</div>
-                <div className="attendee-list">
-                  {maybe.map(r => <div key={r.id} className="attendee-chip maybe">{r.member_name}</div>)}
-                </div>
+                <div className="section-title" style={{ marginTop: 12, marginBottom: 6 }}>Maybe</div>
+                <div className="attendee-list">{maybe.map(r => <div key={r.id} className="attendee-chip maybe">{r.member_name}</div>)}</div>
               </>
             )}
-
             {regrets.length > 0 && (
               <>
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 12, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Regrets</div>
-                <div className="attendee-list">
-                  {regrets.map(r => <div key={r.id} className="attendee-chip" style={{ opacity: 0.5 }}>{r.member_name}</div>)}
-                </div>
+                <div className="section-title" style={{ marginTop: 12, marginBottom: 6 }}>Regrets</div>
+                <div className="attendee-list">{regrets.map(r => <div key={r.id} className="attendee-chip" style={{ opacity: 0.5 }}>{r.member_name}</div>)}</div>
               </>
             )}
           </>
         )}
 
+        {/* Venue Suggestions */}
+        {meetup.status === 'upcoming' && (
+          <>
+            <div className="divider" />
+            <div className="section-header">
+              <div className="section-title">Venue Suggestions</div>
+              {!hasConfirmedVenue && identity && (
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowSuggestForm(s => !s)}>+ Suggest</button>
+              )}
+            </div>
+
+            {showSuggestForm && (
+              <div style={{ background: 'var(--bg3)', borderRadius: 'var(--radius-sm)', padding: 12, marginBottom: 12 }}>
+                <div className="form-group" style={{ marginBottom: 8 }}>
+                  <input className="form-input" placeholder="Venue name *" value={suggestForm.venue_name} onChange={e => setSuggestForm(f => ({ ...f, venue_name: e.target.value }))} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 8 }}>
+                  <input className="form-input" placeholder="Google Maps URL (optional)" value={suggestForm.maps_url} onChange={e => setSuggestForm(f => ({ ...f, maps_url: e.target.value }))} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 8 }}>
+                  <input className="form-input" placeholder="Comment (optional)" value={suggestForm.comment} onChange={e => setSuggestForm(f => ({ ...f, comment: e.target.value }))} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setShowSuggestForm(false)}>Cancel</button>
+                  <button className="btn btn-primary btn-sm" onClick={submitSuggestion} disabled={savingSuggestion}>Submit</button>
+                </div>
+              </div>
+            )}
+
+            {suggestions.length === 0 && !showSuggestForm && (
+              <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>No venue suggestions yet.</p>
+            )}
+
+            {suggestions.map(s => (
+              <div key={s.id} className={`suggestion-card ${s.is_confirmed ? 'confirmed' : hasConfirmedVenue ? 'greyed' : ''}`}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: s.is_confirmed ? 'var(--green)' : 'var(--text)' }}>
+                      {s.is_confirmed ? '✅ ' : ''}{s.venue_name}
+                    </div>
+                    {s.comment && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>{s.comment}</div>}
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>by {s.suggested_by_name}</div>
+                    {s.maps_url && <a href={s.maps_url} target="_blank" rel="noopener noreferrer" className="venue-link" style={{ fontSize: 12 }}>View on Maps</a>}
+                  </div>
+                  {!hasConfirmedVenue && (isAnchor || isAdmin) && (
+                    <button className="btn btn-secondary btn-sm" onClick={() => confirmVenue(s)}>Confirm</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
         <div className="divider" />
+
+        {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="wa-btn" onClick={handleShare}>📱 Share on WhatsApp</button>
-          <button className="btn btn-secondary btn-sm" onClick={onEdit}>✏️ Edit</button>
-          <button className="btn btn-danger btn-sm" onClick={handleDelete}>🗑️ Delete</button>
+          <button className="wa-btn" onClick={handleShare}>📱 Share</button>
+          {canEdit && <button className="btn btn-secondary btn-sm" onClick={onEdit}>✏️ Edit</button>}
+          {(isAdmin || isAnchor) && <button className="btn btn-danger btn-sm" onClick={handleDelete}>🗑️ Delete</button>}
         </div>
+
+        {!canEdit && meetup.status === 'upcoming' && (
+          <div className="alert alert-info" style={{ marginTop: 12 }}>Only the Anchor, confirmed attendees or Admin can edit this meetup.</div>
+        )}
       </div>
     </div>
   )

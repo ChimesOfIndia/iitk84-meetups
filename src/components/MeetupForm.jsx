@@ -1,24 +1,23 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { REGIONS, MEAL_TYPES } from '../lib/constants'
+import { REGIONS, MEAL_TYPES, TIMEZONES, REGION_TIMEZONE_MAP, localToUTC, utcToLocal } from '../lib/constants'
 import { useIdentity } from '../lib/IdentityContext'
 
 const emptyForm = {
-  label: '',
-  meal_type: '',
-  city_cluster: '',
-  custom_city: '',
-  meetup_type: 'local',
-  visitor_names: '',
-  date_time: '',
-  venue_name: '',
-  venue_maps_url: '',
-  with_spouses: false,
-  notes: '',
+  label: '', meal_type: '', city_cluster: '', custom_city: '',
+  meetup_type: 'local', visitor_names: '', date_time: '', timezone: 'Asia/Kolkata',
+  venue_name: '', venue_maps_url: '', with_spouses: false, notes: '',
 }
 
 export default function MeetupForm({ onClose, onSaved, existing }) {
   const { identity } = useIdentity()
+
+  // When editing: convert stored UTC to local time in the meetup's timezone
+  const getInitialDateTime = () => {
+    if (!existing?.date_time) return ''
+    return utcToLocal(existing.date_time, existing.timezone || 'Asia/Kolkata')
+  }
+
   const [form, setForm] = useState(existing ? {
     label: existing.label || '',
     meal_type: existing.meal_type || '',
@@ -26,7 +25,8 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
     custom_city: existing.custom_city || '',
     meetup_type: existing.meetup_type || 'local',
     visitor_names: existing.visitor_names || '',
-    date_time: existing.date_time ? existing.date_time.slice(0, 16) : '',
+    date_time: getInitialDateTime(),
+    timezone: existing.timezone || 'Asia/Kolkata',
     venue_name: existing.venue_name || '',
     venue_maps_url: existing.venue_maps_url || '',
     with_spouses: existing.with_spouses || false,
@@ -37,6 +37,15 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
+  // Auto-set timezone when region changes
+  const handleRegionChange = (val) => {
+    set('city_cluster', val)
+    if (!existing) {
+      const tz = REGION_TIMEZONE_MAP[val] || 'Asia/Kolkata'
+      set('timezone', tz)
+    }
+  }
+
   const needsCustomRegion = ['other_india', 'other_usa', 'rest_of_world'].includes(form.city_cluster)
 
   const save = async () => {
@@ -45,20 +54,24 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
     if (!form.date_time) { setError('Please set a date and time'); return }
     setSaving(true)
     try {
-      const rawDate = form.date_time
-      let parsedDate = null
-      if (rawDate) {
-        const d = new Date(rawDate)
-        parsedDate = isNaN(d.getTime()) ? rawDate : d.toISOString()
-      }
+      // Convert local time + timezone to UTC
+      const utcDateTime = localToUTC(form.date_time, form.timezone)
       const payload = {
-        ...form,
-        date_time: parsedDate,
+        label: form.label,
+        meal_type: form.meal_type,
+        city_cluster: form.city_cluster,
+        custom_city: form.custom_city,
+        meetup_type: form.meetup_type,
         visitor_names: form.meetup_type === 'visit' ? form.visitor_names : null,
+        date_time: utcDateTime,
+        timezone: form.timezone,
+        venue_name: form.venue_name,
+        venue_maps_url: form.venue_maps_url,
+        with_spouses: form.with_spouses,
+        notes: form.notes,
         status: 'upcoming',
       }
-      // On create: set anchor from identity
-      // On edit: preserve existing anchor — do NOT overwrite
+      // Only set anchor on CREATE — never overwrite on edit
       if (!existing) {
         payload.anchor_id = identity?.id || null
         payload.anchor_name = identity?.name || 'Unknown'
@@ -80,8 +93,9 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
+      <div className="sheet" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
+        <button className="sheet-close" onClick={onClose}>✕</button>
         <div className="sheet-title">{existing ? 'Edit Meetup' : 'New Meetup'}</div>
 
         <div className="form-group">
@@ -101,22 +115,16 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
 
         <div className="form-group">
           <label className="form-label">Region</label>
-          <select className="form-select" value={form.city_cluster} onChange={e => set('city_cluster', e.target.value)}>
+          <select className="form-select" value={form.city_cluster} onChange={e => handleRegionChange(e.target.value)}>
             <option value="">Select region...</option>
             <optgroup label="— India —">
-              {REGIONS.filter(c => c.group === 'India').map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
+              {REGIONS.filter(c => c.group === 'India').map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </optgroup>
             <optgroup label="— USA —">
-              {REGIONS.filter(c => c.group === 'USA').map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
+              {REGIONS.filter(c => c.group === 'USA').map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </optgroup>
             <optgroup label="— Rest of World —">
-              {REGIONS.filter(c => c.group === 'Rest of World').map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
+              {REGIONS.filter(c => c.group === 'Rest of World').map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </optgroup>
           </select>
         </div>
@@ -145,6 +153,14 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
         <div className="form-group">
           <label className="form-label">Date & Time</label>
           <input className="form-input" type="datetime-local" value={form.date_time} onChange={e => set('date_time', e.target.value)} />
+          <div className="form-hint">Enter time in local time for the meetup location</div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Timezone</label>
+          <select className="form-select" value={form.timezone} onChange={e => set('timezone', e.target.value)}>
+            {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
         </div>
 
         <div className="form-group">
@@ -170,11 +186,8 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
           <textarea className="form-textarea" placeholder="Parking, dress code, special occasion..." value={form.notes} onChange={e => set('notes', e.target.value)} />
         </div>
 
-        {error && (
-          <div style={{ background: 'rgba(224,92,92,0.15)', border: '1px solid rgba(224,92,92,0.4)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: 'var(--red)' }}>
-            ⚠️ {error}
-          </div>
-        )}
+        {error && <div className="alert alert-error">⚠️ {error}</div>}
+
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary btn-full" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary btn-full" onClick={save} disabled={saving}>

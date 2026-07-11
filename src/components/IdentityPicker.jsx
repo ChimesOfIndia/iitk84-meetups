@@ -19,26 +19,24 @@ export default function IdentityPicker({ onClose }) {
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" style={{ maxWidth: 480, margin: '0 auto' }} onClick={e => e.stopPropagation()}>
+      <div className="sheet" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
+        <button className="sheet-close" onClick={onClose}>✕</button>
         <div className="sheet-title">Who are you?</div>
         <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16, marginTop: -12 }}>
           Pick your name — we'll remember you on this device
         </p>
-        <input
-          className="search-box"
-          placeholder="Search your name..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          autoFocus
-        />
+        <input className="search-box" placeholder="Search your name..." value={search} onChange={e => setSearch(e.target.value)} autoFocus />
         {loading ? <div className="spinner">Loading members...</div> : (
           <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
             {filtered.map(m => (
               <div key={m.id} className="member-card" style={{ cursor: 'pointer' }} onClick={() => saveIdentity(m)}>
                 <div className="member-avatar">{m.name[0]}</div>
                 <div className="member-info">
-                  <div className="member-name">{m.name}</div>
+                  <div className="member-name">
+                    {m.name}
+                    {m.is_admin && <span className="badge badge-admin" style={{ marginLeft: 8, fontSize: 10 }}>Admin</span>}
+                  </div>
                   <div className="member-cities">{(m.cities || []).join(', ')}</div>
                 </div>
               </div>

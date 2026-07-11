@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { CITY_CLUSTERS } from '../lib/constants'
+import { REGIONS, NCR_VALUES, MEAL_TYPES, formatInTZ } from '../lib/constants'
 import MeetupDetail from '../components/MeetupDetail'
-import { format } from 'date-fns'
 
 export default function PastPage() {
   const [meetups, setMeetups] = useState([])
@@ -12,20 +11,19 @@ export default function PastPage() {
 
   const load = async () => {
     setLoading(true)
-    const { data } = await supabase.from('meetups').select('*').eq('status', 'past').order('date_time', { ascending: false })
-    setMeetups(data || [])
-
-    // Also auto-archive upcoming meetups that are past
+    // Auto-archive past meetups
     const now = new Date().toISOString()
     await supabase.from('meetups').update({ status: 'past' }).eq('status', 'upcoming').lt('date_time', now)
+
+    const { data } = await supabase.from('meetups').select('*').eq('status', 'past').order('date_time', { ascending: false })
+    setMeetups(data || [])
 
     if (data && data.length > 0) {
       const { data: rsvps } = await supabase.from('rsvps').select('meetup_id, status, with_spouse').in('meetup_id', data.map(m => m.id))
       const counts = {}
       ;(rsvps || []).forEach(r => {
-        if (!counts[r.meetup_id]) counts[r.meetup_id] = { coming: 0, maybe: 0, spouses: 0 }
+        if (!counts[r.meetup_id]) counts[r.meetup_id] = { coming: 0, spouses: 0 }
         if (r.status === 'coming') { counts[r.meetup_id].coming++; if (r.with_spouse) counts[r.meetup_id].spouses++ }
-        if (r.status === 'maybe') counts[r.meetup_id].maybe++
       })
       setRsvpCounts(counts)
     }
@@ -34,9 +32,20 @@ export default function PastPage() {
 
   useEffect(() => { load() }, [])
 
-  const cityLabel = (m) => {
+  const regionLabel = (m) => {
     if (m.custom_city) return m.custom_city
-    return CITY_CLUSTERS.find(c => c.value === m.city_cluster)?.label || m.city_cluster
+    if (NCR_VALUES.includes(m.city_cluster)) return 'Delhi-NCR'
+    return REGIONS.find(c => c.value === m.city_cluster)?.label || m.city_cluster
+  }
+
+  const mealLabel = (m) => MEAL_TYPES.find(t => t.value === m.meal_type)?.label || ''
+
+  const cardTitle = (m) => {
+    const parts = []
+    if (m.label) parts.push(m.label)
+    if (m.meal_type) parts.push(mealLabel(m))
+    if (parts.length === 0) return m.meetup_type === 'visit' ? `${m.visitor_names} visiting` : `${regionLabel(m)} Meetup`
+    return parts.join(' — ')
   }
 
   return (
@@ -58,16 +67,17 @@ export default function PastPage() {
               <div className="empty-sub">Past meetups will appear here automatically</div>
             </div>
           ) : meetups.map(m => {
-            const counts = rsvpCounts[m.id] || { coming: 0, maybe: 0, spouses: 0 }
+            const counts = rsvpCounts[m.id] || { coming: 0, spouses: 0 }
+            const tz = m.timezone || 'Asia/Kolkata'
             return (
               <div key={m.id} className="card" style={{ opacity: 0.85 }} onClick={() => setSelected(m)}>
-                <div className="card-city">{cityLabel(m)}</div>
+                <div className="card-region">{regionLabel(m)}</div>
                 <div className="card-header">
-                  <div className="card-title">{m.title}</div>
+                  <div className="card-title">{cardTitle(m)}</div>
                   <span className="badge badge-past">Past</span>
                 </div>
                 <div className="card-meta">
-                  {m.date_time && <div className="meta-item">📅 {format(new Date(m.date_time), 'd MMM yyyy')}</div>}
+                  {m.date_time && <div className="meta-item">📅 {formatInTZ(m.date_time, tz)}</div>}
                   {m.venue_name && <div className="meta-item">📍 {m.venue_name}</div>}
                 </div>
                 <div className="rsvp-bar">
@@ -83,12 +93,7 @@ export default function PastPage() {
       </div>
 
       {selected && (
-        <MeetupDetail
-          meetup={selected}
-          onClose={() => setSelected(null)}
-          onEdit={() => {}}
-          onDeleted={() => { setSelected(null); load() }}
-        />
+        <MeetupDetail meetup={selected} onClose={() => setSelected(null)} onEdit={() => {}} onDeleted={() => { setSelected(null); load() }} />
       )}
     </div>
   )
