@@ -14,6 +14,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const [showSuggestForm, setShowSuggestForm] = useState(false)
   const [suggestForm, setSuggestForm] = useState({ venue_name: '', maps_url: '', comment: '' })
   const [savingSuggestion, setSavingSuggestion] = useState(false)
+  const [editingSuggestion, setEditingSuggestion] = useState(null)
 
   const loadData = async () => {
     const [rsvpRes, sugRes] = await Promise.all([
@@ -38,13 +39,14 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const spouseCount = coming.filter(r => r.with_spouse).length
   const extraGuestsTotal = coming.reduce((sum, r) => sum + (r.extra_guests || 0), 0)
 
-  // Edit permission: anchor, confirmed attendees, or admin
   const isAnchor = identity?.id === meetup.anchor_id || identity?.name === meetup.anchor_name
   const isConfirmed = coming.some(r => r.member_id === identity?.id)
   const canEdit = isAdmin || isAnchor || isConfirmed
 
+  const canEditSuggestion = (s) => isAdmin || isAnchor || identity?.name === s.suggested_by_name
+
   const handleRsvp = async (status) => {
-    if (!identity) { return }
+    if (!identity) return
     setSaving(true)
     if (myRsvp && myRsvp.status === status) {
       await supabase.from('rsvps').delete().eq('id', myRsvp.id)
@@ -90,6 +92,25 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     await loadData()
   }
 
+  const saveSuggestionEdit = async () => {
+    if (!editingSuggestion?.venue_name?.trim()) return
+    setSavingSuggestion(true)
+    await supabase.from('venue_suggestions').update({
+      venue_name: editingSuggestion.venue_name,
+      maps_url: editingSuggestion.maps_url,
+      comment: editingSuggestion.comment,
+    }).eq('id', editingSuggestion.id)
+    setEditingSuggestion(null)
+    setSavingSuggestion(false)
+    await loadData()
+  }
+
+  const deleteSuggestion = async (s) => {
+    if (!confirm(`Remove suggestion "${s.venue_name}"?`)) return
+    await supabase.from('venue_suggestions').delete().eq('id', s.id)
+    await loadData()
+  }
+
   const confirmVenue = async (s) => {
     if (!confirm(`Confirm "${s.venue_name}" as the venue? This will update the meetup.`)) return
     await supabase.from('venue_suggestions').update({ is_confirmed: true }).eq('id', s.id)
@@ -131,7 +152,6 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   }
 
   const tz = meetup.timezone || 'Asia/Kolkata'
-  const tzAbbr = TIMEZONES.find(t => t.value === tz)?.abbr || ''
 
   const shareText = () => {
     const comingLabel = `${coming.length} ${coming.length === 1 ? 'batchmate' : 'batchmates'}${spouseCount > 0 ? ` + ${spouseCount} ${spouseCount === 1 ? 'spouse' : 'spouses'}` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}`
@@ -280,15 +300,15 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
             <div className="divider" />
             <div className="section-header">
               <div className="section-title">Venue Suggestions</div>
-              {!hasConfirmedVenue && identity && (
-                <button className="btn btn-secondary btn-sm" onClick={() => setShowSuggestForm(s => !s)}>+ Suggest</button>
+              {!hasConfirmedVenue && identity && !showSuggestForm && (
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowSuggestForm(true)}>+ Suggest</button>
               )}
             </div>
 
             {showSuggestForm && (
               <div style={{ background: 'var(--bg3)', borderRadius: 'var(--radius-sm)', padding: 12, marginBottom: 12 }}>
                 <div className="form-group" style={{ marginBottom: 8 }}>
-                  <input className="form-input" placeholder="Venue name *" value={suggestForm.venue_name} onChange={e => setSuggestForm(f => ({ ...f, venue_name: e.target.value }))} />
+                  <input className="form-input" placeholder="Venue name *" value={suggestForm.venue_name} onChange={e => setSuggestForm(f => ({ ...f, venue_name: e.target.value }))} autoFocus />
                 </div>
                 <div className="form-group" style={{ marginBottom: 8 }}>
                   <input className="form-input" placeholder="Google Maps URL (optional)" value={suggestForm.maps_url} onChange={e => setSuggestForm(f => ({ ...f, maps_url: e.target.value }))} />
@@ -309,19 +329,45 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
 
             {suggestions.map(s => (
               <div key={s.id} className={`suggestion-card ${s.is_confirmed ? 'confirmed' : hasConfirmedVenue ? 'greyed' : ''}`}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                {editingSuggestion?.id === s.id ? (
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: s.is_confirmed ? 'var(--green)' : 'var(--text)' }}>
-                      {s.is_confirmed ? '✅ ' : ''}{s.venue_name}
+                    <div className="form-group" style={{ marginBottom: 8 }}>
+                      <input className="form-input" value={editingSuggestion.venue_name} onChange={e => setEditingSuggestion(es => ({ ...es, venue_name: e.target.value }))} />
                     </div>
-                    {s.comment && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>{s.comment}</div>}
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>by {s.suggested_by_name}</div>
-                    {s.maps_url && <a href={s.maps_url} target="_blank" rel="noopener noreferrer" className="venue-link" style={{ fontSize: 12 }}>View on Maps</a>}
+                    <div className="form-group" style={{ marginBottom: 8 }}>
+                      <input className="form-input" placeholder="Maps URL" value={editingSuggestion.maps_url || ''} onChange={e => setEditingSuggestion(es => ({ ...es, maps_url: e.target.value }))} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 8 }}>
+                      <input className="form-input" placeholder="Comment" value={editingSuggestion.comment || ''} onChange={e => setEditingSuggestion(es => ({ ...es, comment: e.target.value }))} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setEditingSuggestion(null)}>Cancel</button>
+                      <button className="btn btn-primary btn-sm" onClick={saveSuggestionEdit} disabled={savingSuggestion}>Save</button>
+                    </div>
                   </div>
-                  {!hasConfirmedVenue && (isAnchor || isAdmin) && (
-                    <button className="btn btn-secondary btn-sm" onClick={() => confirmVenue(s)}>Confirm</button>
-                  )}
-                </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: s.is_confirmed ? 'var(--green)' : 'var(--text)' }}>
+                        {s.is_confirmed ? '✅ ' : ''}{s.venue_name}
+                      </div>
+                      {s.comment && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>{s.comment}</div>}
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>by {s.suggested_by_name}</div>
+                      {s.maps_url && <a href={s.maps_url} target="_blank" rel="noopener noreferrer" className="venue-link" style={{ fontSize: 12 }}>View on Maps</a>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                      {!hasConfirmedVenue && (isAnchor || isAdmin) && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => confirmVenue(s)}>✓ Confirm</button>
+                      )}
+                      {!s.is_confirmed && canEditSuggestion(s) && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => setEditingSuggestion({ ...s })}>✏️</button>
+                      )}
+                      {canEditSuggestion(s) && (
+                        <button className="btn btn-danger btn-sm" onClick={() => deleteSuggestion(s)}>🗑️</button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </>

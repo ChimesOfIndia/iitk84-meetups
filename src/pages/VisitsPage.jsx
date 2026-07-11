@@ -280,8 +280,14 @@ function PollDetail({ poll, onClose, onConverted }) {
   }
 
   const closePoll = async () => {
-    if (!confirm('Close this poll? No more voting after this.')) return
-    await supabase.from('date_polls').update({ status: 'closed' }).eq('id', poll.id)
+    if (!confirm("Close this poll? No more voting after this.")) return
+    await supabase.from("date_polls").update({ status: "closed" }).eq("id", poll.id)
+    onConverted()
+  }
+
+  const deletePoll = async () => {
+    if (!confirm("Delete this poll entirely? This cannot be undone.")) return
+    await supabase.from("date_polls").delete().eq("id", poll.id)
     onConverted()
   }
 
@@ -336,9 +342,12 @@ function PollDetail({ poll, onClose, onConverted }) {
           )
         })}
 
-        {canManage && poll.status === 'open' && (
-          <div style={{ marginTop: 12 }}>
-            <button className="btn btn-secondary btn-full" onClick={closePoll}>🔒 Close Poll</button>
+        {canManage && (
+          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            {poll.status === 'open' && (
+              <button className="btn btn-secondary btn-full" onClick={closePoll}>🔒 Close Poll</button>
+            )}
+            <button className="btn btn-danger btn-full" onClick={deletePoll}>🗑️ Delete Poll</button>
           </div>
         )}
 
