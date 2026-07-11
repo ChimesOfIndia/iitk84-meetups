@@ -4,6 +4,7 @@ import { IdentityProvider, useIdentity } from './lib/IdentityContext'
 import IdentityPicker from './components/IdentityPicker'
 import MeetupsPage from './pages/MeetupsPage'
 import VisitsPage from './pages/VisitsPage'
+import PollsPage from './pages/PollsPage'
 import MembersPage from './pages/MembersPage'
 import PastPage from './pages/PastPage'
 import { APP_VERSION, FEEDBACK_EMAIL, APP_AUTHOR } from './lib/constants'
@@ -16,8 +17,8 @@ function IdentityBar() {
         <>
           <div>
             <div className="identity-name">
-              👤 {identity.name}
-              {isAdmin && <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 10 }}>👑 Admin</span>}
+              {identity.name}
+              {isAdmin && <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 10 }}>Admin</span>}
             </div>
             <div className="identity-hint">Tap to switch identity</div>
           </div>
@@ -39,6 +40,7 @@ function AppInner() {
   const navItems = [
     { to: '/', label: 'Meetups', icon: '🍽️' },
     { to: '/visits', label: 'Visits', icon: '✈️' },
+    { to: '/polls', label: 'Polls', icon: '🗳️' },
     { to: '/members', label: 'Members', icon: '👥' },
     { to: '/past', label: 'Past', icon: '📅' },
   ]
@@ -50,6 +52,7 @@ function AppInner() {
         <Routes>
           <Route path="/" element={<MeetupsPage />} />
           <Route path="/visits" element={<VisitsPage />} />
+          <Route path="/polls" element={<PollsPage />} />
           <Route path="/members" element={<MembersPage />} />
           <Route path="/past" element={<PastPage />} />
         </Routes>

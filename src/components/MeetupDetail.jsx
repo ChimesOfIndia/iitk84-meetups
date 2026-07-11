@@ -15,6 +15,12 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const [suggestForm, setSuggestForm] = useState({ venue_name: '', maps_url: '', comment: '' })
   const [savingSuggestion, setSavingSuggestion] = useState(false)
   const [editingSuggestion, setEditingSuggestion] = useState(null)
+  const [showBehalfForm, setShowBehalfForm] = useState(false)
+  const [behalfMember, setBehalfMember] = useState(null)
+  const [behalfStatus, setBehalfStatus] = useState('coming')
+  const [behalfWithSpouse, setBehalfWithSpouse] = useState(false)
+  const [allMembers, setAllMembers] = useState([])
+  const [memberSearch, setMemberSearch] = useState('')
 
   const loadData = async () => {
     const [rsvpRes, sugRes] = await Promise.all([
@@ -27,6 +33,11 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
       const mine = (rsvpRes.data || []).find(r => r.member_id === identity.id)
       setMyRsvp(mine || null)
       setExtraGuests(mine?.extra_guests || 0)
+    }
+    // Load members for behalf RSVP
+    if (allMembers.length === 0) {
+      const { data: mems } = await supabase.from('members').select('id, name').order('name')
+      setAllMembers(mems || [])
     }
     setLoading(false)
   }
@@ -57,6 +68,32 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
       else { await supabase.from('rsvps').insert(payload) }
     }
     await loadData(); setSaving(false)
+  }
+
+  const submitBehalfRsvp = async () => {
+    if (!behalfMember) return
+    setSaving(true)
+    const payload = {
+      meetup_id: meetup.id,
+      member_id: behalfMember.id,
+      member_name: behalfMember.name,
+      status: behalfStatus,
+      with_spouse: behalfWithSpouse,
+      extra_guests: 0,
+    }
+    const existing = rsvps.find(r => r.member_id === behalfMember.id)
+    if (existing) {
+      await supabase.from('rsvps').update(payload).eq('id', existing.id)
+    } else {
+      await supabase.from('rsvps').insert(payload)
+    }
+    setShowBehalfForm(false)
+    setBehalfMember(null)
+    setBehalfStatus('coming')
+    setBehalfWithSpouse(false)
+    setMemberSearch('')
+    await loadData()
+    setSaving(false)
   }
 
   const toggleSpouse = async () => {
@@ -247,6 +284,70 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
                     <button className="btn btn-secondary btn-sm" onClick={() => updateExtraGuests(extraGuests + 1)}>+</button>
                   </div>
                 </div>
+              </div>
+            )}
+            {/* RSVP on behalf — Admin and Anchor only */}
+            {(isAdmin || isAnchor) && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowBehalfForm(s => !s)}
+                  style={{ fontSize: 12 }}
+                >
+                  {showBehalfForm ? 'Cancel' : 'RSVP on behalf of someone'}
+                </button>
+
+                {showBehalfForm && (
+                  <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: 12, marginTop: 10 }}>
+                    <div className="form-group" style={{ marginBottom: 8 }}>
+                      <input
+                        className="form-input"
+                        placeholder="Search member name..."
+                        value={memberSearch}
+                        onChange={e => setMemberSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    {memberSearch.length > 1 && (
+                      <div style={{ maxHeight: 160, overflowY: 'auto', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 6 }}>
+                        {allMembers
+                          .filter(m => m.name.toLowerCase().includes(memberSearch.toLowerCase()))
+                          .slice(0, 8)
+                          .map(m => (
+                            <div
+                              key={m.id}
+                              onClick={() => { setBehalfMember(m); setMemberSearch(m.name) }}
+                              style={{
+                                padding: '8px 12px', fontSize: 13, cursor: 'pointer',
+                                background: behalfMember?.id === m.id ? 'var(--blue-bg)' : 'var(--bg2)',
+                                color: behalfMember?.id === m.id ? 'var(--navy)' : 'var(--text)',
+                                fontWeight: behalfMember?.id === m.id ? 600 : 400,
+                              }}
+                            >{m.name}</div>
+                          ))
+                        }
+                      </div>
+                    )}
+                    <div className="toggle-group" style={{ marginBottom: 8 }}>
+                      <button className={`toggle-btn ${behalfStatus === 'coming' ? 'active' : ''}`} onClick={() => setBehalfStatus('coming')}>Coming</button>
+                      <button className={`toggle-btn ${behalfStatus === 'maybe' ? 'active' : ''}`} onClick={() => setBehalfStatus('maybe')}>Maybe</button>
+                      <button className={`toggle-btn ${behalfStatus === 'regrets' ? 'active' : ''}`} onClick={() => setBehalfStatus('regrets')}>Regrets</button>
+                    </div>
+                    {meetup.with_spouses && behalfStatus === 'coming' && (
+                      <div className="toggle-group" style={{ marginBottom: 8 }}>
+                        <button className={`toggle-btn ${behalfWithSpouse ? 'active' : ''}`} onClick={() => setBehalfWithSpouse(true)}>Spouse joining</button>
+                        <button className={`toggle-btn ${!behalfWithSpouse ? 'active' : ''}`} onClick={() => setBehalfWithSpouse(false)}>Without spouse</button>
+                      </div>
+                    )}
+                    <button
+                      className="btn btn-primary btn-sm btn-full"
+                      onClick={submitBehalfRsvp}
+                      disabled={!behalfMember || saving}
+                    >
+                      Save RSVP for {behalfMember?.name || '...'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             <div className="divider" />
