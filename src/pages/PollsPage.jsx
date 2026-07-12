@@ -330,10 +330,38 @@ export default function PollsPage() {
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState(null)
 
+  const [pollOptions, setPollOptions] = useState({})
+  const [pollVotes, setPollVotes] = useState({})
+
   const load = async () => {
     setLoading(true)
     const { data } = await supabase.from('date_polls').select('*').order('created_at', { ascending: false })
     setPolls(data || [])
+
+    if (data && data.length > 0) {
+      const pollIds = data.map(p => p.id)
+      const { data: opts } = await supabase.from('date_poll_options').select('*').in('poll_id', pollIds).order('date_time')
+      const optIds = (opts || []).map(o => o.id)
+      let allVotes = []
+      if (optIds.length > 0) {
+        const { data: v } = await supabase.from('date_poll_votes').select('*').in('option_id', optIds)
+        allVotes = v || []
+      }
+      // Group options by poll_id
+      const optsByPoll = {}
+      ;(opts || []).forEach(o => {
+        if (!optsByPoll[o.poll_id]) optsByPoll[o.poll_id] = []
+        optsByPoll[o.poll_id].push(o)
+      })
+      // Group votes by option_id
+      const votesByOpt = {}
+      allVotes.forEach(v => {
+        if (!votesByOpt[v.option_id]) votesByOpt[v.option_id] = []
+        votesByOpt[v.option_id].push(v)
+      })
+      setPollOptions(optsByPoll)
+      setPollVotes(votesByOpt)
+    }
     setLoading(false)
   }
 
@@ -363,19 +391,57 @@ export default function PollsPage() {
               <div className="empty-text">No date polls yet</div>
               <div className="empty-sub">Tap + to propose some dates</div>
             </div>
-          ) : polls.map(p => (
-            <div key={p.id} className="card" onClick={() => setSelected(p)}>
-              <div className="card-region">{regionLabel(p)}</div>
-              <div className="card-title" style={{ marginBottom: 6 }}>{p.title}</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: 'var(--text3)' }}>by {p.proposed_by_name}</span>
-                <span className={`badge ${p.status === 'open' ? 'badge-local' : 'badge-past'}`}>
-                  {p.status === 'open' ? 'Open' : 'Closed'}
-                </span>
-                {p.converted_to_meetup && <span className="badge badge-visit">Meetup created</span>}
+          ) : polls.map(p => {
+            const opts = pollOptions[p.id] || []
+            return (
+              <div key={p.id} className="card card-accent" onClick={() => setSelected(p)}>
+                <div className="card-region">{regionLabel(p)}</div>
+                <div className="card-header">
+                  <div className="card-title">{p.title}</div>
+                  <span className={`badge ${p.status === 'open' ? 'badge-local' : 'badge-past'}`}>
+                    {p.status === 'open' ? 'Open' : 'Closed'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
+                  by {p.proposed_by_name}
+                  {p.converted_to_meetup && <span className="badge badge-visit" style={{ marginLeft: 8 }}>Meetup created</span>}
+                </div>
+
+                {opts.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {opts.map((opt, i) => {
+                      const votes = pollVotes[opt.id] || []
+                      const yesVotes = votes.filter(v => v.available)
+                      const noVotes = votes.filter(v => !v.available)
+                      const tz = opt.timezone || 'Asia/Kolkata'
+                      const total = yesVotes.length + noVotes.length
+                      const yesPercent = total > 0 ? Math.round((yesVotes.length / total) * 100) : 0
+                      return (
+                        <div key={opt.id} style={{ background: 'var(--bg3)', borderRadius: 6, padding: '8px 10px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--navy)' }}>
+                              Option {i + 1}: {formatInTZ(opt.date_time, tz)}
+                            </span>
+                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                              {yesVotes.length} yes · {noVotes.length} no
+                            </span>
+                          </div>
+                          <div className="poll-bar">
+                            <div className="poll-bar-fill" style={{ width: `${yesPercent}%` }} />
+                          </div>
+                          {yesVotes.length > 0 && (
+                            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>
+                              {yesVotes.map(v => v.member_name).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            )
+          })
         }
       </div>
 
