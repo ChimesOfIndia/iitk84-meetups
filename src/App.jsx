@@ -20,9 +20,13 @@ function IdentityBar() {
               {identity.name}
               {isAdmin && <span style={{ marginLeft: 8, fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 10 }}>Admin</span>}
             </div>
-            <div className="identity-hint">Tap to switch identity</div>
+            <div className="identity-hint">
+              {isAdmin ? 'Tap Switch to change identity' : 'Go to Members tab to switch identity'}
+            </div>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowPicker(true)}>Switch</button>
+          {isAdmin && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowPicker(true)}>Switch</button>
+          )}
         </>
       ) : (
         <>

@@ -4,7 +4,7 @@ import { REGIONS, NCR_VALUES, DIETARY_PREFS } from '../lib/constants'
 import { useIdentity } from '../lib/IdentityContext'
 
 function MemberForm({ existing, onClose, onSaved }) {
-  const { isAdmin } = useIdentity()
+  const { isAdmin, identity, saveIdentity } = useIdentity()
   const [form, setForm] = useState({
     name: existing?.name || '',
     cities: existing?.cities || [],
@@ -118,6 +118,18 @@ function MemberForm({ existing, onClose, onSaved }) {
           </div>
         )}
 
+        {existing && existing.id !== identity?.id && (
+          <div style={{ marginBottom: 12 }}>
+            <button
+              className="btn btn-secondary btn-full"
+              onClick={() => { saveIdentity(existing); onClose() }}
+              style={{ borderColor: 'var(--navy)', color: 'var(--navy)' }}
+            >
+              Switch to {existing.name}
+            </button>
+            <div className="form-hint" style={{ textAlign: 'center', marginTop: 4 }}>Tap to log in as this person on this device</div>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={save} disabled={saving}>{saving ? 'Saving...' : existing ? 'Save Changes' : 'Add Member'}</button>
