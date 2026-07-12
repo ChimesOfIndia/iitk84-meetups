@@ -190,19 +190,29 @@ function PollDetail({ poll, onClose, onRefresh }) {
   }
 
   const shareText = () => {
+    const optionLines = options.map((opt, i) => {
+      const tz = opt.timezone || 'Asia/Kolkata'
+      const optVotes = votes.filter(v => v.option_id === opt.id)
+      const yesVotes = optVotes.filter(v => v.available)
+      const noVotes = optVotes.filter(v => !v.available)
+      const names = yesVotes.map(v => v.member_name).join(', ')
+      return [
+        `Option ${i + 1}: ${formatInTZ(opt.date_time, tz)}`,
+        `  Available (${yesVotes.length}): ${names || 'none yet'}`,
+        `  Not available: ${noVotes.length}`,
+      ].join('\n')
+    })
+
     const lines = [
       `IITK84 Date Poll — ${regionLabel()}`,
       `${poll.title}`,
       `Proposed by: ${poll.proposed_by_name}`,
       `Status: ${poll.status === 'open' ? 'Open for voting' : 'Closed'}`,
       ``,
-      ...options.map((opt, i) => {
-        const tz = opt.timezone || 'Asia/Kolkata'
-        const optVotes = votes.filter(v => v.option_id === opt.id && v.available)
-        return `Option ${i + 1}: ${formatInTZ(opt.date_time, tz)} (${optVotes.length} available)`
-      }),
+      ...optionLines,
       ``,
-      `Vote here: https://iitk84-meetups.vercel.app/polls`,
+      `To vote, open the app and go to the Polls tab:`,
+      `https://iitk84-meetups.vercel.app/polls`,
     ].join('\n')
     return lines
   }
