@@ -191,46 +191,58 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const tz = meetup.timezone || 'Asia/Kolkata'
 
   const shareText = () => {
+    const NL = '\n'
     const DIV = '─────────────────────'
-    const comingLabel = `${coming.length} ${coming.length === 1 ? 'batchmate' : 'batchmates'}${spouseCount > 0 ? ` + ${spouseCount} ${spouseCount === 1 ? 'spouse' : 'spouses'}` : ''}${extraGuestsTotal > 0 ? ` + ${extraGuestsTotal} guests` : ''}`
+    const comingLabel = [
+      `${coming.length} ${coming.length === 1 ? 'batchmate' : 'batchmates'}`,
+      spouseCount > 0 ? `+ ${spouseCount} ${spouseCount === 1 ? 'spouse' : 'spouses'}` : '',
+      extraGuestsTotal > 0 ? `+ ${extraGuestsTotal} guests` : '',
+    ].filter(Boolean).join(' ')
 
-    const lines = [
-      `*IITK84 MeetUp*`,
-      `*${cardTitle()}*`,
-      `_${regionLabel()}${meetup.meal_type ? ' · ' + mealLabel() : ''}${meetup.meetup_type === 'visit' ? ' · ' + meetup.visitor_names + ' visiting' : ''}_`,
-      ``,
-      DIV,
-      meetup.date_time ? `📅  *Date:* ${formatInTZ(meetup.date_time, tz)}` : '',
-      meetup.venue_name ? `📍  *Venue:* ${meetup.venue_maps_url ? meetup.venue_name : meetup.venue_name}` : '📍  *Venue:* TBD',
-      `👫  ${meetup.with_spouses ? 'With spouses' : 'Batchmates only'}`,
-      `⚓  *Anchor:* ${meetup.anchor_name}`,
-      meetup.notes ? `
-📝  _${meetup.notes}_` : '',
-      ``,
-      DIV,
-      coming.length > 0 ? [
-        `✅  *Coming* (${comingLabel})`,
-        ...coming.map(r => `    • ${attendeeName(r)}${r.extra_guests > 0 ? ` +${r.extra_guests} guest(s)` : ''}`),
-      ].join('
-') : '✅  *Coming:* None yet',
-      ``,
-      dietaryCounts.veg + dietaryCounts.nonveg + dietaryCounts.unspecified > 0 ? `🍽️  *Dietary:* 🌿 Veg ${dietaryCounts.veg}  🍖 Non-Veg ${dietaryCounts.nonveg}${dietaryCounts.unspecified > 0 ? `  ❓ Not specified ${dietaryCounts.unspecified}` : ''}` : '',
-      maybe.length > 0 ? `
-🤔  *Maybe* (${maybe.length})
-${maybe.map(r => `    • ${r.member_name}`).join('
-')}` : '',
-      regrets.length > 0 ? `
-❌  *Regrets* (${regrets.length})
-${regrets.map(r => `    • ${r.member_name}`).join('
-')}` : '',
-      ``,
-      DIV,
-      `_IITK84 MeetUps app:_`,
-      `https://iitk84-meetups.vercel.app`,
-    ].filter(s => s !== null && s !== undefined && s !== '').join('
-')
-    return lines
+    const parts = []
+    parts.push('*IITK84 MeetUp*')
+    parts.push('*' + cardTitle() + '*')
+    parts.push('_' + regionLabel() + (meetup.meal_type ? ' · ' + mealLabel() : '') + (meetup.meetup_type === 'visit' ? ' · ' + meetup.visitor_names + ' visiting' : '') + '_')
+    parts.push('')
+    parts.push(DIV)
+    if (meetup.date_time) parts.push('📅  *Date:* ' + formatInTZ(meetup.date_time, tz))
+    parts.push('📍  *Venue:* ' + (meetup.venue_name || 'TBD'))
+    parts.push('👫  ' + (meetup.with_spouses ? 'With spouses' : 'Batchmates only'))
+    parts.push('⚓  *Anchor:* ' + meetup.anchor_name)
+    if (meetup.notes) parts.push('📝  _' + meetup.notes + '_')
+    parts.push('')
+    parts.push(DIV)
+    if (coming.length > 0) {
+      parts.push('✅  *Coming* (' + comingLabel + ')')
+      coming.forEach(r => parts.push('    • ' + attendeeName(r) + (r.extra_guests > 0 ? ' +' + r.extra_guests + ' guest(s)' : '')))
+    } else {
+      parts.push('✅  *Coming:* None yet')
+    }
+    const totalDiet = dietaryCounts.veg + dietaryCounts.nonveg + dietaryCounts.unspecified
+    if (totalDiet > 0) {
+      parts.push('')
+      let dietStr = '🍽️  *Dietary:* 🌿 Veg ' + dietaryCounts.veg + '  🍖 Non-Veg ' + dietaryCounts.nonveg
+      if (dietaryCounts.unspecified > 0) dietStr += '  ❓ Not specified ' + dietaryCounts.unspecified
+      parts.push(dietStr)
+    }
+    if (maybe.length > 0) {
+      parts.push('')
+      parts.push('🤔  *Maybe* (' + maybe.length + ')')
+      maybe.forEach(r => parts.push('    • ' + r.member_name))
+    }
+    if (regrets.length > 0) {
+      parts.push('')
+      parts.push('❌  *Regrets* (' + regrets.length + ')')
+      regrets.forEach(r => parts.push('    • ' + r.member_name))
+    }
+    parts.push('')
+    parts.push(DIV)
+    parts.push('_IITK84 MeetUps app:_')
+    parts.push('https://iitk84-meetups.vercel.app')
+
+    return parts.join(NL)
   }
+
 
   const handleShare = () => {
     const text = shareText()
