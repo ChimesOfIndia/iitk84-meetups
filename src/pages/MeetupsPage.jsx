@@ -23,6 +23,13 @@ const FILTER_GROUPS = [
   { label: 'Rest of World', value: 'rest_of_world' },
 ]
 
+function formatDate(d) {
+  if (!d) return ''
+  const parts = d.slice(0,10).split('-')
+  const dt = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]))
+  return dt.toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short',year:'numeric'})
+}
+
 export default function MeetupsPage() {
   const [meetups, setMeetups] = useState([])
   const [loading, setLoading] = useState(true)
@@ -140,7 +147,7 @@ return (
                   </span>
                 </div>
                 <div className="card-meta">
-                  {m.date_time && <div className="meta-item">📅 {new Date(m.date_time + 'T00:00:00').toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short'})}{m.time_text ? ' · ' + m.time_text : ''}</div>}
+                  {m.date_time && <div className="meta-item">📅 {formatDate(m.date_time)}{m.time_text ? ' · ' + m.time_text : ''}</div>}
                   {m.venue_name && <div className="meta-item">📍 {m.venue_name}</div>}
                   {m.with_spouses && <div className="meta-item">👫 With spouses</div>}
                   <div className="meta-item">⚓ {m.anchor_name}</div>

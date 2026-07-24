@@ -3,6 +3,13 @@ import { supabase } from '../lib/supabase'
 import { useIdentity } from '../lib/IdentityContext'
 import { REGIONS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
 
+function formatDate(d) {
+  if (!d) return ''
+  const parts = d.slice(0,10).split('-')
+  const dt = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]))
+  return dt.toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short',year:'numeric'})
+}
+
 export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
   const { identity, isAdmin } = useIdentity()
   const [rsvps, setRsvps] = useState([])
@@ -204,7 +211,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
     parts.push('')
     parts.push(DIV)
     if (meetup.date_time) {
-      const d = new Date(meetup.date_time + 'T00:00:00').toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short',year:'numeric'})
+      const d = formatDate(meetup.date_time)
       parts.push('📅  *Date:* ' + d + (meetup.time_text ? ' · ' + meetup.time_text : ''))
     }
     parts.push('📍  *Venue:* ' + (meetup.venue_name || 'TBD'))
@@ -275,7 +282,7 @@ export default function MeetupDetail({ meetup, onClose, onEdit, onDeleted }) {
         </div>
 
         <div className="card-meta">
-          {meetup.date_time && <div className="meta-item">📅 {new Date(meetup.date_time + 'T00:00:00').toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short',year:'numeric'})}{meetup.time_text ? ' · ' + meetup.time_text : ''}</div>}
+          {meetup.date_time && <div className="meta-item">📅 {formatDate(meetup.date_time)}{meetup.time_text ? ' · ' + meetup.time_text : ''}</div>}
           {meetup.venue_name && (
             <div className="meta-item">
               📍 {meetup.venue_maps_url
