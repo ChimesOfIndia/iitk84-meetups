@@ -14,9 +14,7 @@ export const REGIONS = [
   { value: 'australia', label: 'Australia', group: 'Rest of World', ncr: false },
   { value: 'rest_of_world', label: 'Rest of World', group: 'Rest of World', ncr: false },
 ]
-
 export const CITY_CLUSTERS = REGIONS
-
 export const TIMEZONES = [
   { value: 'Asia/Kolkata', label: 'IST (India)', abbr: 'IST' },
   { value: 'America/Los_Angeles', label: 'PT (Bay Area)', abbr: 'PT' },
@@ -27,7 +25,6 @@ export const TIMEZONES = [
   { value: 'Australia/Sydney', label: 'AEST (Australia)', abbr: 'AEST' },
   { value: 'Europe/London', label: 'GMT/BST (UK)', abbr: 'GMT' },
 ]
-
 export const REGION_TIMEZONE_MAP = {
   delhi: 'Asia/Kolkata', gurgaon: 'Asia/Kolkata', noida: 'Asia/Kolkata',
   bangalore: 'Asia/Kolkata', mumbai: 'Asia/Kolkata', other_india: 'Asia/Kolkata',
@@ -35,89 +32,60 @@ export const REGION_TIMEZONE_MAP = {
   other_usa: 'America/New_York', middle_east: 'Asia/Dubai', singapore: 'Asia/Singapore',
   australia: 'Australia/Sydney', rest_of_world: 'Europe/London',
 }
-
 export const MEAL_TYPES = [
   { value: 'breakfast', label: 'Breakfast' },
   { value: 'lunch', label: 'Lunch' },
   { value: 'dinner', label: 'Dinner' },
   { value: 'coffee', label: 'Coffee' },
 ]
-
 export const DIETARY_PREFS = [
   { value: 'veg', label: 'Veg only' },
   { value: 'nonveg', label: 'Non-Veg' },
 ]
-
-export const RSVP_STATUS = {
-  COMING: 'coming',
-  MAYBE: 'maybe',
-  REGRETS: 'regrets',
-}
-
+export const RSVP_STATUS = { COMING: 'coming', MAYBE: 'maybe', REGRETS: 'regrets' }
 export const NCR_VALUES = ['delhi', 'gurgaon', 'noida']
-
 export const APP_VERSION = 'V2.0'
 export const FEEDBACK_EMAIL = 'akmails@gmail.com'
 export const APP_AUTHOR = 'Anuj Kacker'
-
-export function formatInTZ(utcDateStr, timezone, fmt = 'short') {
+export function formatInTZ(utcDateStr, timezone) {
   if (!utcDateStr) return ''
   try {
     const date = new Date(utcDateStr)
     const abbr = TIMEZONES.find(t => t.value === timezone)?.abbr || ''
     const formatted = date.toLocaleString('en-IN', {
-      timeZone: timezone,
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
+      timeZone: timezone, weekday: 'short', day: 'numeric',
+      month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
     })
     return `${formatted} ${abbr}`
-  } catch {
-    return utcDateStr
-  }
+  } catch { return utcDateStr }
 }
-
 export function localToUTC(localStr, timezone) {
   if (!localStr) return null
   try {
     const [datePart, timePart] = localStr.split('T')
-    const [year, month, day] = datePart.split('-').map(Number)
-    const [hour, minute] = (timePart || '00:00').split(':').map(Number)
-    const naiveUTC = new Date(Date.UTC(year, month - 1, day, hour, minute))
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    })
-    const parts = formatter.formatToParts(naiveUTC)
-    const p = {}
-    parts.forEach(({ type, value }) => { p[type] = value })
-    const tzDate = new Date(Date.UTC(
-      parseInt(p.year), parseInt(p.month) - 1, parseInt(p.day),
-      parseInt(p.hour), parseInt(p.minute)
-    ))
-    const offsetMs = naiveUTC - tzDate
-    return new Date(naiveUTC.getTime() + offsetMs).toISOString()
-  } catch {
+    const timeStr = timePart || '00:00'
+    const tempDate = new Date(`${datePart}T${timeStr}:00Z`)
+    const tzStr = tempDate.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' })
+    const offsetMatch = tzStr.match(/GMT([+-]\d+(?::\d+)?)/)
+    if (offsetMatch) {
+      const offsetStr = offsetMatch[1]
+      const [h, m = '0'] = offsetStr.split(':')
+      const totalMins = parseInt(h) * 60 + (parseInt(h) >= 0 ? parseInt(m) : -parseInt(m))
+      const utc = new Date(`${datePart}T${timeStr}:00Z`)
+      utc.setMinutes(utc.getMinutes() - totalMins)
+      return utc.toISOString()
+    }
     return new Date(localStr).toISOString()
-  }
+  } catch { return new Date(localStr).toISOString() }
 }
-
 export function utcToLocal(utcStr, timezone) {
   if (!utcStr) return ''
   try {
     const date = new Date(utcStr)
     const parts = date.toLocaleString('en-CA', {
-      timeZone: timezone,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: timezone, year: 'numeric', month: '2-digit',
+      day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
     })
     return parts.replace(', ', 'T').replace(',', 'T').substring(0, 16)
-  } catch {
-    return utcStr.slice(0, 16)
-  }
+  } catch { return utcStr.slice(0, 16) }
 }
