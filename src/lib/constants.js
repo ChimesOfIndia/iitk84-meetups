@@ -60,7 +60,6 @@ export const APP_VERSION = 'V2.0'
 export const FEEDBACK_EMAIL = 'akmails@gmail.com'
 export const APP_AUTHOR = 'Anuj Kacker'
 
-// Utility: format a UTC datetime in a specific timezone
 export function formatInTZ(utcDateStr, timezone, fmt = 'short') {
   if (!utcDateStr) return ''
   try {
@@ -82,26 +81,32 @@ export function formatInTZ(utcDateStr, timezone, fmt = 'short') {
   }
 }
 
-// Convert a local datetime-local string + timezone to UTC ISO
 export function localToUTC(localStr, timezone) {
   if (!localStr) return null
   try {
-    // Create a date as if it's in the given timezone
     const [datePart, timePart] = localStr.split('T')
     const [year, month, day] = datePart.split('-').map(Number)
-    const [hour, minute] = timePart.split(':').map(Number)
-    // Use Intl to find offset
-    const testDate = new Date(Date.UTC(year, month - 1, day, hour, minute))
-    const localStr2 = testDate.toLocaleString('en-CA', { timeZone: timezone, hour12: false })
-    const localDate = new Date(localStr2.replace(',', ''))
-    const offset = testDate - localDate
-    return new Date(testDate.getTime() + offset).toISOString()
+    const [hour, minute] = (timePart || '00:00').split(':').map(Number)
+    const naiveUTC = new Date(Date.UTC(year, month - 1, day, hour, minute))
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    })
+    const parts = formatter.formatToParts(naiveUTC)
+    const p = {}
+    parts.forEach(({ type, value }) => { p[type] = value })
+    const tzDate = new Date(Date.UTC(
+      parseInt(p.year), parseInt(p.month) - 1, parseInt(p.day),
+      parseInt(p.hour), parseInt(p.minute)
+    ))
+    const offsetMs = naiveUTC - tzDate
+    return new Date(naiveUTC.getTime() + offsetMs).toISOString()
   } catch {
     return new Date(localStr).toISOString()
   }
 }
 
-// Convert UTC ISO to datetime-local string in a timezone
 export function utcToLocal(utcStr, timezone) {
   if (!utcStr) return ''
   try {
@@ -111,7 +116,6 @@ export function utcToLocal(utcStr, timezone) {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hour12: false,
     })
-    // en-CA gives YYYY-MM-DD, HH:MM
     return parts.replace(', ', 'T').replace(',', 'T').substring(0, 16)
   } catch {
     return utcStr.slice(0, 16)
