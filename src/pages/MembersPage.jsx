@@ -226,7 +226,7 @@ export default function MembersPage() {
                 </div>
                 {m.spouse_name && <div style={{ fontSize: 11, color: 'var(--text3)' }}>+{m.spouse_name} {dietLabel(m.spouse_dietary_pref)}</div>}
                 <div className="member-cities">{cityLabel(m.cities)}</div>
-                {m.whatsapp && <div className="member-wa">📱 {m.whatsapp}</div>}
+                {m.whatsapp && m.whatsapp.trim() && <div className="member-wa">📱 {m.whatsapp}</div>}
               </div>
             </div>
           ))
