@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { REGIONS, MEAL_TYPES, TIMEZONES, REGION_TIMEZONE_MAP, localToUTC, utcToLocal } from '../lib/constants'
+import { REGIONS, MEAL_TYPES } from '../lib/constants'
 import { useIdentity } from '../lib/IdentityContext'
 
 const emptyForm = {
@@ -31,6 +31,7 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
     venue_maps_url: existing.venue_maps_url || '',
     with_spouses: existing.with_spouses || false,
     notes: existing.notes || '',
+    time_text: existing.time_text || '',
   } : emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -40,10 +41,6 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
   // Auto-set timezone when region changes
   const handleRegionChange = (val) => {
     set('city_cluster', val)
-    if (!existing) {
-      const tz = REGION_TIMEZONE_MAP[val] || 'Asia/Kolkata'
-      set('timezone', tz)
-    }
   }
 
   const needsCustomRegion = ['other_india', 'other_usa', 'rest_of_world'].includes(form.city_cluster)
@@ -51,7 +48,7 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
   const save = async () => {
     setError(null)
     if (!form.city_cluster) { setError('Please select a region'); return }
-    if (!form.date_time) { setError('Please set a date and time'); return }
+    if (!form.date_time) { setError('Please set a date'); return }
     setSaving(true)
     try {
       // Convert local time + timezone to UTC
@@ -150,17 +147,15 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Date & Time</label>
-          <input className="form-input" type="datetime-local" value={form.date_time} onChange={e => set('date_time', e.target.value)} />
-          <div className="form-hint">Enter time in local time for the meetup location</div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Timezone</label>
-          <select className="form-select" value={form.timezone} onChange={e => set('timezone', e.target.value)}>
-            {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Date</label>
+            <input className="form-input" type="date" value={form.date_time || ''} onChange={e => set('date_time', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Time (optional)</label>
+            <input className="form-input" type="text" placeholder="e.g. 7:30 PM" value={form.time_text || ''} onChange={e => set('time_text', e.target.value)} />
+          </div>
         </div>
 
         <div className="form-group">

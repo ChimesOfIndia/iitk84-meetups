@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { REGIONS, NCR_VALUES, MEAL_TYPES, formatInTZ } from '../lib/constants'
+import { REGIONS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
 import MeetupDetail from '../components/MeetupDetail'
 
 export default function PastPage() {
@@ -68,8 +68,7 @@ export default function PastPage() {
             </div>
           ) : meetups.map(m => {
             const counts = rsvpCounts[m.id] || { coming: 0, spouses: 0 }
-            const tz = m.timezone || 'Asia/Kolkata'
-            return (
+return (
               <div key={m.id} className="card" style={{ opacity: 0.85 }} onClick={() => setSelected(m)}>
                 <div className="card-region">{regionLabel(m)}</div>
                 <div className="card-header">
@@ -77,7 +76,7 @@ export default function PastPage() {
                   <span className="badge badge-past">Past</span>
                 </div>
                 <div className="card-meta">
-                  {m.date_time && <div className="meta-item">📅 {formatInTZ(m.date_time, tz)}</div>}
+                  {m.date_time && <div className="meta-item">📅 {new Date(m.date_time + 'T00:00:00').toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short',year:'numeric'})}{m.time_text ? ' · ' + m.time_text : ''}</div>}
                   {m.venue_name && <div className="meta-item">📍 {m.venue_name}</div>}
                 </div>
                 <div className="rsvp-bar">

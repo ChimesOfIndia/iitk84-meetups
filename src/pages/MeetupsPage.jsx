@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { REGIONS, NCR_VALUES, MEAL_TYPES, formatInTZ } from '../lib/constants'
+import { REGIONS, NCR_VALUES, MEAL_TYPES } from '../lib/constants'
 import MeetupForm from '../components/MeetupForm'
 import MeetupDetail from '../components/MeetupDetail'
 
@@ -127,8 +127,7 @@ export default function MeetupsPage() {
           ) : sorted.map(m => {
             const counts = rsvpCounts[m.id] || { coming: 0, maybe: 0, regrets: 0, spouses: 0, extras: 0 }
             const diet = dietaryCounts[m.id] || { veg: 0, nonveg: 0, unspecified: 0 }
-            const tz = m.timezone || 'Asia/Kolkata'
-            return (
+return (
               <div key={m.id} className="card card-accent" onClick={() => setSelected(m)}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                   <div className="card-region">{regionLabel(m)}</div>
@@ -141,7 +140,7 @@ export default function MeetupsPage() {
                   </span>
                 </div>
                 <div className="card-meta">
-                  {m.date_time && <div className="meta-item">📅 {formatInTZ(m.date_time, tz)}</div>}
+                  {m.date_time && <div className="meta-item">📅 {new Date(m.date_time + 'T00:00:00').toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short'})}{m.time_text ? ' · ' + m.time_text : ''}</div>}
                   {m.venue_name && <div className="meta-item">📍 {m.venue_name}</div>}
                   {m.with_spouses && <div className="meta-item">👫 With spouses</div>}
                   <div className="meta-item">⚓ {m.anchor_name}</div>
