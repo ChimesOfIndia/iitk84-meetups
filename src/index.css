@@ -175,7 +175,8 @@ body { overflow-x: hidden; }
 .form-select option { background: var(--bg2); }
 .form-textarea { resize: vertical; min-height: 80px; }
 .form-row { display: flex; gap: 10px; }
-.form-row .form-group { flex: 1; }
+.form-row .form-group { flex: 1; min-width: 0; }
+.form-row .form-input { min-width: 0; }
 .form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
 
 /* Toggle */

@@ -6,7 +6,7 @@ import { useIdentity } from '../lib/IdentityContext'
 const emptyForm = {
   label: '', meal_type: '', city_cluster: '', custom_city: '',
   meetup_type: 'local', visitor_names: '', date_time: '', timezone: 'Asia/Kolkata',
-  venue_name: '', venue_maps_url: '', with_spouses: false, notes: '',
+  venue_name: '', venue_maps_url: '', with_spouses: false, notes: '', time_text: '',
 }
 
 export default function MeetupForm({ onClose, onSaved, existing }) {
@@ -63,6 +63,7 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
         visitor_names: form.meetup_type === 'visit' ? form.visitor_names : null,
         date_time: utcDateTime,
         timezone: form.timezone,
+        time_text: form.time_text,
         venue_name: form.venue_name,
         venue_maps_url: form.venue_maps_url,
         with_spouses: form.with_spouses,
