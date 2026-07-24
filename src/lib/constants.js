@@ -59,25 +59,29 @@ export function formatInTZ(utcDateStr, timezone) {
     return `${formatted} ${abbr}`
   } catch { return utcDateStr }
 }
+export function getOffsetMinutes(date, timezone) {
+  const utcStr = date.toISOString().slice(0, 16)
+  const localStr = date.toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 16)
+  const utcDate = new Date(utcStr + 'Z')
+  const locDate = new Date(localStr.replace(' ', 'T') + 'Z')
+  return Math.round((locDate - utcDate) / 60000)
+}
+
 export function localToUTC(localStr, timezone) {
   if (!localStr) return null
   try {
     const [datePart, timePart] = localStr.split('T')
-    const timeStr = timePart || '00:00'
-    const tempDate = new Date(`${datePart}T${timeStr}:00Z`)
-    const tzStr = tempDate.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' })
-    const offsetMatch = tzStr.match(/GMT([+-]\d+(?::\d+)?)/)
-    if (offsetMatch) {
-      const offsetStr = offsetMatch[1]
-      const [h, m = '0'] = offsetStr.split(':')
-      const totalMins = parseInt(h) * 60 + (parseInt(h) >= 0 ? parseInt(m) : -parseInt(m))
-      const utc = new Date(`${datePart}T${timeStr}:00Z`)
-      utc.setMinutes(utc.getMinutes() - totalMins)
-      return utc.toISOString()
-    }
+    const timeStr = (timePart || '00:00').slice(0, 5)
+    const ref = new Date(datePart + 'T12:00:00Z')
+    const offsetMins = getOffsetMinutes(ref, timezone)
+    const localDate = new Date(datePart + 'T' + timeStr + ':00Z')
+    localDate.setMinutes(localDate.getMinutes() - offsetMins)
+    return localDate.toISOString()
+  } catch {
     return new Date(localStr).toISOString()
-  } catch { return new Date(localStr).toISOString() }
+  }
 }
+
 export function utcToLocal(utcStr, timezone) {
   if (!utcStr) return ''
   try {
