@@ -15,7 +15,8 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
   // When editing: convert stored UTC to local time in the meetup's timezone
   const getInitialDateTime = () => {
     if (!existing?.date_time) return ''
-    return utcToLocal(existing.date_time, existing.timezone || 'Asia/Kolkata')
+    if (!existing.date_time) return ''
+    return existing.date_time.slice(0, 10)
   }
 
   const [form, setForm] = useState(existing ? {
@@ -52,7 +53,7 @@ export default function MeetupForm({ onClose, onSaved, existing }) {
     setSaving(true)
     try {
       // Convert local time + timezone to UTC
-      const utcDateTime = localToUTC(form.date_time, form.timezone)
+      const utcDateTime = form.date_time ? form.date_time + 'T00:00:00+00:00' : null
       const payload = {
         label: form.label,
         meal_type: form.meal_type,
