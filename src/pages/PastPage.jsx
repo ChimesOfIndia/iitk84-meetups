@@ -5,9 +5,11 @@ import MeetupDetail from '../components/MeetupDetail'
 
 function formatDate(d) {
   if (!d) return ''
-  const parts = d.slice(0,10).split('-')
-  const dt = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]))
-  return dt.toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short',year:'numeric'})
+  // Handle both 'YYYY-MM-DD' and full ISO timestamps
+  const dateStr = d.slice(0, 10)
+  const [y, m, day] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, day)
+  return dt.toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short', year:'numeric'})
 }
 
 export default function PastPage() {
